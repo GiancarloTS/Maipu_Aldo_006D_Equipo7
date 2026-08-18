@@ -2,20 +2,20 @@
 
 LinkCare es una aplicación orientada al monitoreo y gestión del cuidado de personas postradas en cama o niños. Su objetivo principal es centralizar la información del paciente en un solo lugar, facilitando el acceso y seguimiento por parte de familiares, cuidadores y equipo médico.
 
-## 🎯 Objetivo
+##  Objetivo
 
 Facilitar la gestión del cuidado mediante una plataforma que permita mantener organizada y actualizada la información relevante del paciente.
 
-## ✨ Funcionalidades principales
+##  Funcionalidades principales
 
-- 👤 Registro y gestión de información del paciente.
-- 💊 Registro y seguimiento de medicamentos y horarios.
-- 📝 Registro de anotaciones relacionadas con el cuidado.
-- ❤️ Seguimiento de variables de salud.
-- 👨‍👩‍👧 Gestión de familiares y cuidadores.
-- 🚨 Registro de contactos de emergencia.
-- 👨‍⚕️ Acceso a la información por parte del equipo médico.
-- 📱 Acceso mediante código QR para facilitar la consulta de la información del paciente.
+-  Registro y gestión de información del paciente.
+-  Registro y seguimiento de medicamentos y horarios.
+-  Registro de anotaciones relacionadas con el cuidado.
+-  Seguimiento de variables de salud.
+-  Gestión de familiares y cuidadores.
+-  Registro de contactos de emergencia.
+-  Acceso a la información por parte del equipo médico.
+-  Acceso mediante código QR para facilitar la consulta de la información del paciente.
 
 ##  Usuarios
 
