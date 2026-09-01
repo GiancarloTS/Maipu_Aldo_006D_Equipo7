@@ -41,6 +41,7 @@ Este proyecto es desarrollado como parte del Proyecto APT de la carrera de infor
 - *C4:* Desarrollo y mantenimiento de soluciones de software.
 
 ##  Estado del proyecto
+Link mockup:www.figma.com/proto/HtcRuQzJXBqYEwJE4JAYrS/Sin-t%C3%ADtulo?node-id=2-1189&t=foQiMe1omgJ5ZxQA-1
 
  *En desarrollo*
 
