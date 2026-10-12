@@ -49,9 +49,9 @@ Actualmente, la información relacionada con el cuidado de adultos mayores o per
 
 LinkCare implementa una **Arquitectura Cliente-Servidor en Tres Capas**:
 
-```
 
-```
+![alt text](https://github.com/GiancarloTS/Maipu_Aldo_006D_Equipo7/blob/48305619d9f863d7bad3d933e1131cb1a7c99ab3/assets/arquitectura.png)
+
 
 ## Metodología de Trabajo
 
