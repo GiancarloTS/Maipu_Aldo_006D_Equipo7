@@ -1,48 +1,148 @@
-# LinkCare
+# LinkCare — Gestión Centralizada del Cuidado de Pacientes
 
-LinkCare es una aplicación orientada al monitoreo y gestión del cuidado de personas postradas en cama o niños. Su objetivo principal es centralizar la información del paciente en un solo lugar, facilitando el acceso y seguimiento por parte de familiares, cuidadores y equipo médico.
+> **Proyecto de Título** — Ingeniería en Informática, Duoc UC.
 
-##  Objetivo
+## Descripción del Proyecto
 
-Facilitar la gestión del cuidado mediante una plataforma que permita mantener organizada y actualizada la información relevante del paciente.
+### ¿Qué problema resuelve?
 
-##  Funcionalidades principales
+Actualmente, la información relacionada con el cuidado de adultos mayores o personas en situación de dependencia suele estar dispersa en cuadernos de papel, mensajes de texto o la memoria de los distintos involucrados. Esta falta de centralización genera:
 
--  Registro y gestión de información del paciente.
--  Registro y seguimiento de medicamentos y horarios.
--  Registro de anotaciones relacionadas con el cuidado.
--  Seguimiento de variables de salud.
--  Gestión de familiares y cuidadores.
--  Registro de contactos de emergencia.
--  Acceso a la información por parte del equipo médico.
--  Acceso mediante código QR para facilitar la consulta de la información del paciente.
+* **Riesgo de errores:** Duplicidad u omisión en la administración de medicamentos.
 
-##  Usuarios
+* **Pérdida de tiempo:** Necesidad de reconstruir el historial médico en cada visita.
 
-LinkCare está pensado principalmente para:
+* **Baja visibilidad:** Dificultad para coordinar acciones entre familiares, cuidadores y personal médico.
 
-- *Familiares:* pueden consultar y gestionar información relacionada con el cuidado.
-- *Cuidadores:* pueden registrar medicamentos, anotaciones y otros datos relevantes.
-- *Equipo médico:* puede consultar la información necesaria durante el seguimiento del paciente.
+### ¿Qué hace LinkCare?
 
-##  Problema que busca solucionar
+**LinkCare** es una aplicación móvil diseñada para centralizar y gestionar en un único lugar toda la información del paciente:
 
-El proyecto busca solucionar la dificultad de mantener centralizada y actualizada la información relacionada con el cuidado de un paciente cuando participan diferentes familiares, cuidadores y profesionales de la salud.
+* **Ficha Única del Paciente:** Historial de medicamentos, horarios, observaciones clínicas y variables de salud.
 
-LinkCare propone reunir esta información en una única plataforma, facilitando la comunicación y el acceso a datos importantes para el cuidado.
+* **Control de Acceso por Roles:** Vistas y permisos diferenciados para *Familiares*, *Cuidadores* y *Equipo Médico*.
 
-##  Proyecto APT
+* **Acceso Rápido mediante Código QR:** Generación de tokens seguros y temporales para que médicos o personal de salud consulten la ficha del paciente de forma inmediata durante una visita.
 
-Este proyecto es desarrollado como parte del Proyecto APT de la carrera de informática y permite aplicar competencias relacionadas con:
+* **Registro de Información por Voz:** Módulo manos libres para que los cuidadores ingresen notas y observaciones mediante comandos hablados.
 
-- *C1:* Pruebas y certificación de software.
-- *C2:* Gestión de proyectos informáticos.
-- *C3:* Modelamiento y gestión de datos.
-- *C4:* Desarrollo y mantenimiento de soluciones de software.
+### ¿A quién va dirigido?
 
-##  Estado del proyecto
-Link mockup:www.figma.com/proto/HtcRuQzJXBqYEwJE4JAYrS/Sin-t%C3%ADtulo?node-id=2-1189&t=foQiMe1omgJ5ZxQA-1
+* **Familiares:** Para monitorear el estado de salud, recibir reportes y verificar el cumplimiento de cuidados.
 
- *En desarrollo*
+* **Cuidadores (Independientes o de Agencias):** Para registrar dosis administradas, alertas y bitácoras diarias.
 
-Las funcionalidades y características de LinkCare pueden evolucionar durante el desarrollo del proyecto.
+* **Equipo Médico:** Para inspeccionar el historial clínico de forma rápida durante visitas domiciliarias o controles.
+
+## Tecnologías Utilizadas
+
+| Capa / Dominio | Tecnología / Herramienta | 
+| ----- | ----- | 
+| **Frontend Móvil** | [React Native](https://reactnative.dev/) | 
+| **Backend / API** | [Node.js](https://nodejs.org/) con [Express](https://expressjs.com/) | 
+| **Base de Datos & BaaS** | [Supabase](https://supabase.com/) (PostgreSQL con Row Level Security) | 
+| **Autenticación & Seguridad** | JWT (JSON Web Tokens), Supabase Auth, Cifrado HTTPS/TLS, AES-256 | 
+| **Integraciones** | Módulo de Voz (Speech-to-Text), Generación y Escaneo de Códigos QR | 
+| **Control de Versiones** | Git / GitHub | 
+
+## Arquitectura de la Solución
+
+LinkCare implementa una **Arquitectura Cliente-Servidor en Tres Capas**:
+
+```
+
+```
+
+## Metodología de Trabajo
+
+El equipo utiliza una **Metodología Ágil estructurada por Etapas Iterativas**, combinada con **Kanban** para la gestión del backlog y la priorización de tareas.
+
+```
+[ Análisis ] ➔ [ Diseño ] ➔ [ Desarrollo ] ➔ [ Pruebas ] ➔ [ Documentación ]
+
+```
+
+* **Gestión del Trabajo:** Uso de tableros Kanban (GitHub Projects / Trello) para asignación de tareas e Historias de Usuario.
+
+* **Ciclo de Entrega:** Revisiones continuas y validación de entregables al finalizar cada fase académica (Capítulos del Informe APT).
+
+* **Control de Calidad:** Pruebas funcionales e integración continua durante las etapas de desarrollo.
+
+## Integrantes y Roles
+
+| Integrante | Rol en el Proyecto | Responsabilidades Principales | 
+| ----- | ----- | ----- | 
+| **Giancarlo Trepiana** | *Lead Developer / QA* | Desarrollo frontend/backend, integración de API, implementación de pruebas funcionales y corrección de errores. | 
+| **Andrés Saldívar** | *Software Architect / Data Analyst* | Análisis de requerimientos, modelamiento de base de datos relacional, arquitectura de solución y documentación técnica. | 
+
+* **Profesor Guía:** Aldo Martínez
+
+* **Institución:** Duoc UC — Sede Maipú
+
+* **Asignatura:** Capstone (Proyecto APT)
+
+## Instrucciones para Ejecutar el Proyecto Localmente
+
+### Prerrequisitos
+
+Asegúrate de tener instalado en tu máquina local:
+
+* [Node.js](https://nodejs.org/) (v18.0 o superior)
+
+* [npm](https://www.npmjs.com/) o [yarn](https://yarnpkg.com/)
+
+* [Git](https://git-scm.com/)
+
+* Aplicación **Expo Go** en tu dispositivo móvil o un emulador (Android Studio / Xcode).
+
+### Pasos de Instalación
+
+1. **Clonar el repositorio:**
+
+   ```
+   git clone https://github.com/TU_USUARIO/linkcare.git
+   cd linkcare
+   
+   ```
+
+2. **Configurar las Variables de Entorno (`.env`):**
+   Crea un archivo `.env` en la raíz del proyecto backend con las siguientes claves:
+
+   ```
+   PORT=3000
+   SUPABASE_URL=tu_supabase_project_url
+   SUPABASE_ANON_KEY=tu_supabase_anon_key
+   
+   ```
+
+3. **Instalar dependencias del Backend:**
+
+   ```
+   cd backend
+   npm install
+   
+   ```
+
+4. **Iniciar el servidor Backend:**
+
+   ```
+   npm run dev
+   
+   ```
+
+5. **Instalar dependencias del Frontend:**
+
+   ```
+   cd ../frontend
+   npm install
+   
+   ```
+
+6. **Iniciar la Aplicación Móvil:**
+
+   ```
+   npx expo start
+   
+   ```
+
+   * Escanea el código QR generado en la consola usando la app **Expo Go** (Android) o la cámara nativa (iOS).
