@@ -19,6 +19,7 @@ const roleQuickActions = {
     { label: 'Historial', route: '/medication-history', detail: 'Últimas dosis', tone: '#06b6d4', icon: '📋' },
     { label: 'Cronología', route: '/annotations', detail: 'Notas clínicas', tone: '#02c39a', icon: '📝' },
     { label: 'Nueva nota', route: '/annotations-new', detail: 'Registrar evento', tone: '#0f766e', icon: '✍️' },
+    { label: 'Variables de salud', route: '/health-variables', detail: 'Registrar mediciones', tone: '#0B7285', icon: '♥' },
     { label: 'Perfil', route: '/profile-settings', detail: 'Cuenta y ajustes', tone: '#475569', icon: '👤' },
   ],
   familiar: [
@@ -36,6 +37,7 @@ const roleQuickActions = {
     { label: 'Escanear QR', route: '/qr-scanner', detail: 'Vincular ficha', tone: '#023047', icon: '📷' },
     { label: 'Cronología', route: '/annotations', detail: 'Observaciones clínicas', tone: '#02c39a', icon: '📝' },
     { label: 'Nueva nota', route: '/annotations-new', detail: 'Registrar evolución', tone: '#0f766e', icon: '✍️' },
+    { label: 'Variables de salud', route: '/health-variables', detail: 'Registrar mediciones', tone: '#0B7285', icon: '♥' },
     { label: 'Perfil', route: '/profile-settings', detail: 'Cuenta y ajustes', tone: '#475569', icon: '👤' },
   ],
 } as const;
@@ -184,7 +186,7 @@ export default function DashboardScreen() {
           <View style={styles.grid}>
             {visibleActions.map((item) => (
               <Pressable
-                key={`${roleKey}-${item.label}`}
+                key={`${roleKey}-${item.route}`}
                 style={[styles.quickCard, { backgroundColor: item.tone }]}
                 onPress={() => router.push(item.route as any)}
                 accessibilityRole="button"
@@ -593,4 +595,3 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-

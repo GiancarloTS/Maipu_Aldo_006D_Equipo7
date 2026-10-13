@@ -40,15 +40,21 @@ export default function MedicationsDayScreen() {
     };
   }, []));
 
-  const medicationSchedule = medications.map((med) => ({
-    id: med.id,
-    time: formatTime(med.hora_inicio),
-    name: med.nombre,
-    dose: med.dosis,
-    status: mapStatus(med.estado),
-    tone: med.estado === 'administrado' ? 'ok' : med.estado === 'pendiente' ? 'pending' : 'late',
-    source: med,
-  }));
+  const today = new Date().toLocaleDateString('sv-SE');
+  const medicationSchedule = medications.map((med) => {
+    const isInDateRange = med.fecha_inicio <= today && (!med.fecha_fin || med.fecha_fin >= today);
+    const canRecordDose = med.estado === 'aprobado' && isInDateRange;
+    return {
+      id: med.id,
+      time: formatTime(med.hora_inicio),
+      name: med.nombre,
+      dose: med.dosis,
+      status: !isInDateRange ? 'Fuera de vigencia' : mapStatus(med.estado),
+      tone: med.estado === 'administrado' ? 'ok' : med.estado === 'pendiente' ? 'pending' : 'late',
+      canRecordDose,
+      source: med,
+    };
+  });
 
   const summary = `${medicationSchedule.filter((med) => med.status === 'Tomado').length} tomadas · ${medicationSchedule.filter((med) => med.status === 'Pendiente').length} pendientes · ${medicationSchedule.filter((med) => med.status === 'Revisión').length} revisión`;
   const hasPatient = linkedPatients.length > 0;
@@ -128,7 +134,7 @@ export default function MedicationsDayScreen() {
             <Text style={styles.medMeta}>{med.dose} · Paciente: {data?.patientName ?? 'Paciente vinculado'}</Text>
           </View>
           <Text style={[styles.stateBadge, med.tone === 'ok' ? styles.ok : med.tone === 'pending' ? styles.pending : med.tone === 'late' ? styles.late : styles.planned]}>{med.status}</Text>
-          {canAdminister && (med.source.estado === 'pendiente' || med.source.estado === 'aprobado') && (
+          {canAdminister && med.canRecordDose && (
             <Pressable
               style={[styles.administerButton, savingMedicationId === med.id && styles.disabledButton]}
               onPress={() => confirmAdministration(med.source, true)}
@@ -139,7 +145,7 @@ export default function MedicationsDayScreen() {
               <Text style={styles.administerText}>{savingMedicationId === med.id ? 'Guardando...' : 'Marcar administrada'}</Text>
             </Pressable>
           )}
-          {canAdminister && (med.source.estado === 'pendiente' || med.source.estado === 'aprobado') && (
+          {canAdminister && med.canRecordDose && (
             <Pressable
               style={[styles.notAdministerButton, savingMedicationId === med.id && styles.disabledButton]}
               onPress={() => confirmAdministration(med.source, false)}

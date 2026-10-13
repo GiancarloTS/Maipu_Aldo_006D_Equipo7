@@ -29,7 +29,7 @@ export default function OnboardingSecondScreen() {
       <View style={styles.cardList}>
         <View style={styles.cardItem}>
           <Text style={styles.cardTitle}>Diagnóstico</Text>
-          <Text style={styles.cardText}>Diabetes tipo 2</Text>
+          <Text style={styles.cardText}>Sin diagnóstico registrado</Text>
         </View>
         <View style={styles.cardItem}>
           <Text style={styles.cardTitle}>Alergias</Text>

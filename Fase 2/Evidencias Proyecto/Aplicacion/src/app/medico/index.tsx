@@ -2,11 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { getDoctorPatients, getRoleDashboardData, type DoctorPatient, type ScreenData } from '@/lib/linkcare-data';
+import { getDoctorPatients, getPendingMedicationApprovals, getRoleDashboardData, reviewMedicationPrescription, type DoctorPatient, type PendingMedicationApproval, type ScreenData } from '@/lib/linkcare-data';
 
 export default function MedicoScreen() {
   const [data, setData] = useState<ScreenData | null>(null);
   const [patients, setPatients] = useState<DoctorPatient[]>([]);
+  const [approvals, setApprovals] = useState<PendingMedicationApproval[]>([]);
+  const [approvalError, setApprovalError] = useState('');
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -14,19 +17,33 @@ export default function MedicoScreen() {
     let active = true;
     const load = async () => {
       setIsLoading(true);
-      const [overview, result] = await Promise.all([
+      const [overview, result, approvalResult] = await Promise.all([
         getRoleDashboardData('medico'),
         getDoctorPatients(),
+        getPendingMedicationApprovals(),
       ]);
       if (!active) return;
       setData(overview);
       setPatients(result.patients);
       setErrorMessage(result.error ?? '');
+      setApprovals(approvalResult.approvals);
+      setApprovalError(approvalResult.error ?? '');
       setIsLoading(false);
     };
     void load();
     return () => { active = false; };
   }, []));
+
+  const handleReview = async (medicationId: string, approve: boolean) => {
+    setReviewingId(medicationId);
+    const result = await reviewMedicationPrescription({ medicationId, approve });
+    setReviewingId(null);
+    if (!result.success) {
+      setApprovalError(result.error ?? 'No se pudo revisar la prescripción.');
+      return;
+    }
+    setApprovals((current) => current.filter((item) => item.id !== medicationId));
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
@@ -95,10 +112,33 @@ export default function MedicoScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Aprobaciones</Text>
-        {(data?.medications ?? []).map((item) => (
-          <View key={`${item.name}-${item.time}`} style={styles.noteCard}>
-            <Text style={styles.noteText}>{`${item.name} · ${item.status}`}</Text>
+        <Text style={styles.sectionTitle}>Prescripciones pendientes ({approvals.length})</Text>
+        {approvalError ? <Text style={styles.errorText}>{approvalError}</Text> : null}
+        {!approvalError && !approvals.length ? <Text style={styles.bodyText}>No hay prescripciones pendientes de revisión.</Text> : null}
+        {approvals.map((item) => (
+          <View key={item.id} style={styles.noteCard}>
+            <Text style={styles.approvalPatient}>{item.patientName}</Text>
+            <Text style={styles.noteText}>{`${item.name} · ${item.dose} · cada ${item.frequencyHours} h`}</Text>
+            <View style={styles.approvalActions}>
+              <Pressable
+                style={[styles.approveButton, reviewingId === item.id && styles.disabledButton]}
+                onPress={() => void handleReview(item.id, true)}
+                disabled={reviewingId !== null}
+                accessibilityRole="button"
+                accessibilityLabel={`Aprobar ${item.name} para ${item.patientName}`}
+              >
+                <Text style={styles.approveButtonText}>{reviewingId === item.id ? 'Guardando...' : 'Aprobar'}</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.revisionButton, reviewingId === item.id && styles.disabledButton]}
+                onPress={() => void handleReview(item.id, false)}
+                disabled={reviewingId !== null}
+                accessibilityRole="button"
+                accessibilityLabel={`Enviar ${item.name} a revisión`}
+              >
+                <Text style={styles.revisionButtonText}>Rechazar / revisar</Text>
+              </Pressable>
+            </View>
           </View>
         ))}
       </View>
@@ -281,6 +321,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
+  approvalPatient: { color: '#0F172A', fontSize: 14, fontWeight: '800', marginBottom: 4 },
+  approvalActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  approveButton: { flex: 1, minHeight: 40, backgroundColor: '#166534', borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  approveButtonText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  revisionButton: { flex: 1, minHeight: 40, backgroundColor: '#FEF3C7', borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  revisionButtonText: { color: '#92400E', fontSize: 12, fontWeight: '800' },
+  disabledButton: { opacity: 0.6 },
   primaryButton: {
     marginTop: 10,
     backgroundColor: '#028090',

@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
-import { getCurrentUserRole, linkPatientToCurrentUser } from '@/lib/linkcare-data';
+import { getCurrentUserRole, getLinkedPatientByCode, linkPatientToCurrentUser } from '@/lib/linkcare-data';
 
 export default function QRScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -42,17 +42,25 @@ export default function QRScannerScreen() {
 
     setIsValidating(true);
     try {
-      const result = await linkPatientToCurrentUser({ patientCode: normalized });
+      const role = await getCurrentUserRole();
+      const result = role === 'medico'
+        ? await linkPatientToCurrentUser({ patientCode: normalized })
+        : await getLinkedPatientByCode(normalized);
+
       if (!result.success) {
         setScanStatus('error');
         lastScannedRef.current = null;
-        Alert.alert('QR no válido', result.error ?? 'No se pudo vincular el paciente.');
+        Alert.alert(
+          role === 'medico' ? 'No se pudo vincular al paciente' : 'Acceso denegado',
+          result.error ?? (role === 'medico'
+            ? 'El código QR no es válido.'
+            : 'El código no es válido o el paciente no está asociado a tu cuenta.'),
+        );
         return;
       }
 
       setPatientName(result.patientName ?? 'Paciente vinculado');
       setScanStatus('detectado');
-      const role = await getCurrentUserRole();
       router.push(role === 'medico'
         ? { pathname: '/medico/patient-history' as any, params: { patientId: result.patientId } }
         : { pathname: '/qr-patient-summary' as any, params: { patientId: result.patientId } });

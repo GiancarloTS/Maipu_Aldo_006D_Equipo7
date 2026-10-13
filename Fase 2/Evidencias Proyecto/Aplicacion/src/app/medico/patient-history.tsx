@@ -69,6 +69,15 @@ export default function MedicalPatientHistoryScreen() {
             </View>
           </View>
 
+          <Pressable
+            style={styles.healthButton}
+            onPress={() => router.push({ pathname: '/health-variables' as any, params: { patientId: data.id } })}
+            accessibilityRole="button"
+            accessibilityLabel={`Registrar o consultar variables de salud de ${data.name}`}
+          >
+            <Text style={styles.healthButtonText}>Variables de salud</Text>
+          </Pressable>
+
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Medicamentos</Text>
@@ -127,6 +136,8 @@ const styles = StyleSheet.create({
   patientName: { color: '#0F172A', fontSize: 20, fontWeight: '800' },
   patientMeta: { color: '#475569', marginTop: 3 },
   keyFacts: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  healthButton: { minHeight: 44, backgroundColor: '#006B73', borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  healthButtonText: { color: '#fff', fontWeight: '800' },
   fact: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: '#E6F4F2' },
   factLabel: { color: '#00545B', fontSize: 11, fontWeight: '800', marginBottom: 5 },
   factValue: { color: '#0F172A', fontSize: 13, lineHeight: 18, fontWeight: '600' },

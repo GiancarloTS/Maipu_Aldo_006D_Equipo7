@@ -288,6 +288,8 @@ as $$
 declare
   patient_id uuid;
   current_status public.medicamento_estado;
+  medication_start date;
+  medication_end date;
   new_record_id uuid;
 begin
   if auth.uid() is null or not exists (
@@ -297,8 +299,8 @@ begin
     raise exception 'Solo un cuidador activo puede registrar administraciones.' using errcode = '42501';
   end if;
 
-  select m.paciente_id, m.estado
-    into patient_id, current_status
+  select m.paciente_id, m.estado, m.fecha_inicio, m.fecha_fin
+    into patient_id, current_status, medication_start, medication_end
     from public.medicamentos m
     where m.id = p_medicamento_id
     for update;
@@ -316,8 +318,10 @@ begin
     raise exception 'No tienes autorización sobre este paciente.' using errcode = '42501';
   end if;
 
-  if current_status not in ('pendiente', 'aprobado') then
-    raise exception 'Este medicamento no está pendiente ni aprobado para administración.' using errcode = '55000';
+  if current_status <> 'aprobado'
+    or medication_start > current_date
+    or (medication_end is not null and medication_end < current_date) then
+    raise exception 'La prescripción no está aprobada o fuera de vigencia.' using errcode = '55000';
   end if;
 
   insert into public.registro_medicacion (

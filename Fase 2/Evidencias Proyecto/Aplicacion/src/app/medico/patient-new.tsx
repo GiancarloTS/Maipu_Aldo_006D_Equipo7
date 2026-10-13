@@ -1,26 +1,62 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { createElement, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { createPatientForCurrentUser } from '@/lib/linkcare-data';
 
+const formatISODate = (date: Date): string => {
+  const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+  return localDate.toISOString().slice(0, 10);
+};
+
+const parseISODate = (value: string): Date | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+  const parsedDate = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(parsedDate.getTime())) return null;
+
+  return formatISODate(parsedDate) === value ? parsedDate : null;
+};
+
 export default function NewPatientScreen() {
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [principalDiagnosis, setPrincipalDiagnosis] = useState('');
   const [rut, setRut] = useState('');
   const [allergies, setAllergies] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = async () => {
-    const parsedDate = new Date(`${birthDate}T00:00:00`);
-    const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(birthDate)
-      && !Number.isNaN(parsedDate.getTime())
-      && parsedDate.toISOString().slice(0, 10) === birthDate
-      && parsedDate <= new Date();
+  const handleDateChange = (_event: unknown, selectedDate?: Date) => {
+    setShowDatePicker(false);
 
-    if (!name.trim() || !isValidDate) {
-      Alert.alert('Revisa los datos', 'Ingresa el nombre y una fecha de nacimiento válida en formato AAAA-MM-DD.');
+    if (!selectedDate) {
+      return;
+    }
+
+    setBirthDate(formatISODate(selectedDate));
+  };
+
+  const handleSave = async () => {
+    const parsedDate = parseISODate(birthDate);
+    const isValidDate = !!parsedDate && birthDate <= formatISODate(new Date());
+    const missingFields = [
+      !name.trim() ? 'nombre completo' : null,
+      !birthDate ? 'fecha de nacimiento' : null,
+    ].filter((field): field is string => field !== null);
+
+    if (missingFields.length > 0) {
+      Alert.alert(
+        'Paciente no válido',
+        `Completa los campos obligatorios: ${missingFields.join(' y ')}.`,
+      );
+      return;
+    }
+
+    if (!isValidDate) {
+      Alert.alert('Paciente no válido', 'La fecha de nacimiento no es válida. Selecciona una fecha válida.');
       return;
     }
 
@@ -28,6 +64,7 @@ export default function NewPatientScreen() {
     const result = await createPatientForCurrentUser({
       nombre: name,
       fechaNacimiento: birthDate,
+      diagnosticoPrincipal: principalDiagnosis,
       rut,
       alergias: allergies,
       contactoEmergencia: emergencyContact,
@@ -42,6 +79,8 @@ export default function NewPatientScreen() {
     Alert.alert('Paciente registrado', 'El paciente quedó vinculado a tu cuenta. Su QR está listo para compartir.');
     router.replace({ pathname: '/qr-patient-summary' as any, params: { patientId: result.patientId } });
   };
+
+  const datePickerValue = birthDate ? parseISODate(birthDate) ?? new Date() : new Date();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -60,7 +99,45 @@ export default function NewPatientScreen() {
             <TextInput value={name} onChangeText={setName} style={styles.input} placeholder="Nombre y apellidos" autoCapitalize="words" accessibilityLabel="Nombre completo del paciente" />
 
             <Text style={styles.label}>Fecha de nacimiento *</Text>
-            <TextInput value={birthDate} onChangeText={setBirthDate} style={styles.input} placeholder="AAAA-MM-DD" keyboardType="numbers-and-punctuation" accessibilityLabel="Fecha de nacimiento" accessibilityHint="Formato año-mes-día" />
+            {Platform.OS === 'web' ? (
+              createElement('input', {
+                type: 'date',
+                value: birthDate,
+                max: formatISODate(new Date()),
+                onChange: (event) => setBirthDate(event.currentTarget.value),
+                'aria-label': 'Fecha de nacimiento',
+                style: {
+                  height: 48,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  border: '1px solid #94A3B8',
+                  borderRadius: 10,
+                  padding: '0 13px',
+                  marginBottom: 15,
+                  color: '#0F172A',
+                  backgroundColor: '#fff',
+                  fontSize: 15,
+                },
+              })
+            ) : (
+              <>
+                <Pressable style={[styles.input, styles.dateButton]} onPress={() => setShowDatePicker(true)} accessibilityRole="button" accessibilityLabel="Seleccionar fecha de nacimiento">
+                  <Text style={[styles.dateText, !birthDate && styles.placeholderText]}>{birthDate || 'Selecciona la fecha'}</Text>
+                </Pressable>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={datePickerValue}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    onChange={handleDateChange}
+                  />
+                )}
+              </>
+            )}
+
+            <Text style={styles.label}>Diagnóstico principal</Text>
+            <TextInput value={principalDiagnosis} onChangeText={setPrincipalDiagnosis} style={styles.input} placeholder="Opcional" accessibilityLabel="Diagnóstico principal del paciente" />
 
             <Text style={styles.label}>RUT</Text>
             <TextInput value={rut} onChangeText={setRut} style={styles.input} placeholder="Opcional" accessibilityLabel="RUT del paciente" />
@@ -92,7 +169,10 @@ const styles = StyleSheet.create({
   form: { backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: '#dfeaf1', padding: 18 },
   intro: { color: '#023047', fontSize: 17, fontWeight: '800', marginBottom: 18 },
   label: { color: '#334155', fontSize: 14, fontWeight: '700', marginBottom: 7 },
-  input: { minHeight: 48, borderWidth: 1, borderColor: '#94A3B8', borderRadius: 10, paddingHorizontal: 13, marginBottom: 15, color: '#0F172A', backgroundColor: '#fff' },
+  input: { minHeight: 48, borderWidth: 1, borderColor: '#94A3B8', borderRadius: 10, paddingHorizontal: 13, marginBottom: 15, color: '#0F172A', backgroundColor: '#fff', justifyContent: 'center' },
+  dateButton: { alignItems: 'flex-start' },
+  dateText: { color: '#0F172A', fontSize: 15 },
+  placeholderText: { color: '#64748B' },
   primaryButton: { minHeight: 50, backgroundColor: '#006B73', borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   disabledButton: { opacity: 0.65 },
   primaryText: { color: '#fff', fontWeight: '800', fontSize: 16 },

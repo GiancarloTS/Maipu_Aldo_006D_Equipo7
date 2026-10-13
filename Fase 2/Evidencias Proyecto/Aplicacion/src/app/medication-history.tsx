@@ -7,22 +7,7 @@ import { getMedicationHistoryData, getProfileSettingsData, type MedicationHistor
 const filters = ['7 días', '30 días', '90 días'] as const;
 
 const parseDateValue = (value: string): number => {
-  const normalized = value.trim();
-  const [dayPart, monthPart, yearPart] = normalized.split('/');
-
-  if (!dayPart || !monthPart || !yearPart) {
-    return Number.NaN;
-  }
-
-  const day = Number(dayPart);
-  const month = Number(monthPart);
-  const year = Number(yearPart);
-
-  if ([day, month, year].some((part) => Number.isNaN(part))) {
-    return Number.NaN;
-  }
-
-  return new Date(year, month - 1, day).getTime();
+  return Date.parse(value);
 };
 
 export default function MedicationHistoryScreen() {
@@ -116,12 +101,12 @@ export default function MedicationHistoryScreen() {
       )}
 
       {visibleHistory.map((item) => (
-        <View key={`${item.name}-${item.date}`} style={styles.card}>
+        <View key={item.id} style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.medName}>{item.name}</Text>
             <Text style={[styles.statusBadge, item.status === 'Administrada' ? styles.ok : styles.missed]}>{item.status}</Text>
           </View>
-          <Text style={styles.meta}>Fecha: {item.date}</Text>
+          <Text style={styles.meta}>Fecha y hora: {new Date(item.date).toLocaleDateString('es-CL')} · {item.time}</Text>
           <Text style={styles.meta}>Registrado por: {item.recorder}</Text>
         </View>
       ))}

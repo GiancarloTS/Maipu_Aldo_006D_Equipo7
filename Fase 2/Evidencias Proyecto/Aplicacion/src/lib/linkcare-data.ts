@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { formatTime, mapStatus, type VisualMedicationStatus } from '@/lib/linkcare-utils';
+import { dispatchRelevantNotification } from '@/lib/push-notifications';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 const PROFILE_NOTIFICATION_KEY = 'linkcare.profile.notifications';
@@ -52,6 +53,7 @@ type PatientRow = {
   id: string;
   nombre: string;
   fecha_nacimiento?: string | null;
+  diagnostico_principal?: string | null;
   codigo_qr_token?: string | null;
   alergias?: string | null;
   contacto_emergencia?: string | null;
@@ -150,7 +152,7 @@ async function getPatientForRole(role: RoleKey, profile: UserProfile | null): Pr
     if (profile.paciente_id) {
       const { data: patientData, error: patientError } = await supabase
         .from('pacientes')
-        .select('id, nombre, fecha_nacimiento, codigo_qr_token, alergias, contacto_emergencia')
+        .select('id, nombre, fecha_nacimiento, diagnostico_principal, codigo_qr_token, alergias, contacto_emergencia')
         .eq('id', profile.paciente_id)
         .maybeSingle();
 
@@ -177,7 +179,7 @@ async function getPatientForRole(role: RoleKey, profile: UserProfile | null): Pr
 
     const { data: patientData, error: patientError } = await supabase
       .from('pacientes')
-      .select('id, nombre, fecha_nacimiento, codigo_qr_token, alergias, contacto_emergencia')
+      .select('id, nombre, fecha_nacimiento, diagnostico_principal, codigo_qr_token, alergias, contacto_emergencia')
       .eq('id', patientLink.paciente_id)
       .maybeSingle();
 
@@ -212,8 +214,9 @@ export type ProfileSettingsData = {
   email: string;
   phone: string;
   role: string;
+  canSelectLinkedPatient: boolean;
   linkedPatients: string[];
-  linkedPatientRecords: Array<{ id: string; name: string }>;
+  linkedPatientRecords: Array<{ id: string; name: string; isPrimary: boolean }>;
   notifications: {
     medicines: boolean;
     alerts: boolean;
@@ -222,8 +225,10 @@ export type ProfileSettingsData = {
 };
 
 export type MedicationHistoryItem = {
+  id: string;
   name: string;
   date: string;
+  time: string;
   recorder: string;
   status: 'Administrada' | 'No administrada';
 };
@@ -249,6 +254,15 @@ export type MedicalPatientEvent = {
   title: string;
   detail: string;
   occurredAt: string;
+  recordedBy: string;
+};
+
+export type HealthVariable = {
+  id: string;
+  type: string;
+  value: string;
+  unit: string | null;
+  recordedAt: string;
   recordedBy: string;
 };
 
@@ -318,7 +332,7 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
     }
 
     const medicationIds = (medicationRows ?? []).map((item) => item.id);
-    const [administrationResult, annotationResult] = medicationIds.length
+    const [administrationResult, annotationResult, healthResult] = medicationIds.length
       ? await Promise.all([
           supabase
             .from('registro_medicacion')
@@ -330,6 +344,11 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
             .select('id, contenido, fecha_hora, registrado_por')
             .eq('paciente_id', patientId)
             .order('fecha_hora', { ascending: false }),
+          supabase
+            .from('variables_salud')
+            .select('id, tipo_variable, valor, unidad_medida, fecha_hora, registrado_por')
+            .eq('paciente_id', patientId)
+            .order('fecha_hora', { ascending: false }),
         ])
       : await Promise.all([
           Promise.resolve({ data: [], error: null }),
@@ -338,10 +357,15 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
             .select('id, contenido, fecha_hora, registrado_por')
             .eq('paciente_id', patientId)
             .order('fecha_hora', { ascending: false }),
+          supabase
+            .from('variables_salud')
+            .select('id, tipo_variable, valor, unidad_medida, fecha_hora, registrado_por')
+            .eq('paciente_id', patientId)
+            .order('fecha_hora', { ascending: false }),
         ]);
 
-    if (administrationResult.error || annotationResult.error) {
-      return { success: false, error: administrationResult.error?.message ?? annotationResult.error?.message };
+    if (administrationResult.error || annotationResult.error || healthResult.error) {
+      return { success: false, error: administrationResult.error?.message ?? annotationResult.error?.message ?? healthResult.error?.message };
     }
 
     const medicationById = new Map((medicationRows ?? []).map((item) => [item.id, item]));
@@ -367,6 +391,14 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
       };
     });
 
+    const healthEvents: MedicalPatientEvent[] = (healthResult.data ?? []).map((variable) => ({
+      id: `health-${variable.id}`,
+      title: `Medición: ${variable.tipo_variable}`,
+      detail: [variable.valor, variable.unidad_medida].filter(Boolean).join(' '),
+      occurredAt: variable.fecha_hora,
+      recordedBy: variable.registrado_por ? `Usuario ${variable.registrado_por.slice(0, 8)}` : 'Usuario registrado',
+    }));
+
     const age = patient.fecha_nacimiento
       ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años`
       : 'No informada';
@@ -389,7 +421,7 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
           endDate: medication.fecha_fin,
           status: medication.estado,
         })),
-        events: [...administrationEvents, ...annotationEvents]
+        events: [...administrationEvents, ...annotationEvents, ...healthEvents]
           .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)),
       },
     };
@@ -398,6 +430,89 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
       success: false,
       error: error instanceof Error ? error.message : 'No se pudo cargar el historial clínico.',
     };
+  }
+}
+
+export async function getPatientHealthVariables(patientId?: string): Promise<{ success: boolean; patientId?: string; patientName?: string; variables: HealthVariable[]; error?: string }> {
+  if (!supabase || !isSupabaseConfigured) {
+    return { success: false, variables: [], error: 'Supabase no está configurado.' };
+  }
+
+  try {
+    const profile = await getCurrentUserProfile();
+    if (!profile?.id) return { success: false, variables: [], error: 'Inicia sesión para consultar mediciones.' };
+
+    let selectedPatientId = patientId || profile.paciente_id || '';
+    if (selectedPatientId) {
+      const { data: link, error: linkError } = await supabase
+        .from('paciente_usuario')
+        .select('paciente_id')
+        .eq('paciente_id', selectedPatientId)
+        .eq('usuario_id', profile.id)
+        .maybeSingle();
+      if (linkError || !link) return { success: false, variables: [], error: 'No tienes acceso a este paciente.' };
+    } else {
+      const role = profile.rol as RoleKey;
+      const patient = await getPatientForRole(role, profile);
+      selectedPatientId = patient?.id ?? '';
+    }
+
+    if (!selectedPatientId) return { success: true, variables: [] };
+
+    const [{ data: patient, error: patientError }, { data: rows, error }] = await Promise.all([
+      supabase.from('pacientes').select('nombre').eq('id', selectedPatientId).maybeSingle(),
+      supabase
+        .from('variables_salud')
+        .select('id, tipo_variable, valor, unidad_medida, fecha_hora, registrado_por')
+        .eq('paciente_id', selectedPatientId)
+        .order('fecha_hora', { ascending: false })
+        .limit(100),
+    ]);
+
+    if (patientError || error) return { success: false, variables: [], error: patientError?.message ?? error?.message };
+
+    return {
+      success: true,
+      patientId: selectedPatientId,
+      patientName: patient?.nombre ?? 'Paciente',
+      variables: (rows ?? []).map((row) => ({
+        id: row.id,
+        type: row.tipo_variable,
+        value: row.valor,
+        unit: row.unidad_medida,
+        recordedAt: row.fecha_hora,
+        recordedBy: row.registrado_por,
+      })),
+    };
+  } catch (error) {
+    return { success: false, variables: [], error: error instanceof Error ? error.message : 'No se pudieron cargar las mediciones.' };
+  }
+}
+
+export async function saveHealthVariable(input: { patientId: string; type: string; value: string; unit?: string }): Promise<{ success: boolean; error?: string }> {
+  if (!supabase || !isSupabaseConfigured) return { success: false, error: 'Supabase no está configurado.' };
+  if (!input.patientId || !input.type.trim() || !input.value.trim()) {
+    return { success: false, error: 'Completa el tipo y el valor de la medición.' };
+  }
+
+  try {
+    const { data: variableId, error } = await supabase.rpc('save_health_variable', {
+      p_paciente_id: input.patientId,
+      p_tipo_variable: input.type.trim(),
+      p_valor: input.value.trim(),
+      p_unidad_medida: input.unit?.trim() || null,
+    });
+    if (error) return { success: false, error: error.message };
+    if (variableId) {
+      await dispatchRelevantNotification({
+        eventId: variableId,
+        eventType: 'health_variable',
+        patientId: input.patientId,
+      });
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'No se pudo guardar la medición.' };
   }
 }
 
@@ -422,7 +537,7 @@ export async function getPatientSummaryData(patientId?: string): Promise<Patient
     let patient = patientId
       ? (await supabase
           .from('pacientes')
-          .select('id, nombre, fecha_nacimiento, codigo_qr_token, alergias, contacto_emergencia')
+          .select('id, nombre, fecha_nacimiento, diagnostico_principal, codigo_qr_token, alergias, contacto_emergencia')
           .eq('id', patientId)
           .maybeSingle()).data as PatientRow | null
       : null;
@@ -449,7 +564,7 @@ export async function getPatientSummaryData(patientId?: string): Promise<Patient
       name: patient.nombre,
       age,
       location: 'Hospital Central',
-      diagnosis: 'Diabetes tipo 2',
+      diagnosis: patient.diagnostico_principal?.trim() || 'Sin diagnóstico asignado',
       allergies: patient.alergias ?? 'Sin alergias registradas',
       medicines: (medicationRows ?? []).map((item) => item.nombre).join(', ') || 'Sin medicamentos registrados',
       emergencyContact: patient.contacto_emergencia ?? '+56 9 8765 4321',
@@ -532,6 +647,21 @@ export async function getDashboardOverviewData(): Promise<DashboardOverviewData>
 }
 
 async function readStoredNotificationSettings(): Promise<{ medicines: boolean; alerts: boolean }> {
+  if (supabase && isSupabaseConfigured) {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (userId) {
+        const { data: preferences } = await supabase
+          .from('notification_preferences')
+          .select('medicines, alerts')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (preferences) return preferences;
+      }
+    } catch {}
+  }
+
   try {
     const raw = await AsyncStorage.getItem(PROFILE_NOTIFICATION_KEY);
     if (!raw) {
@@ -550,15 +680,56 @@ async function readStoredNotificationSettings(): Promise<{ medicines: boolean; a
 
 export async function saveNotificationSettings(input: { medicines: boolean; alerts: boolean }): Promise<{ success: boolean; error?: string }> {
   try {
-    await AsyncStorage.setItem(PROFILE_NOTIFICATION_KEY, JSON.stringify({
+    const preferences = {
       medicines: Boolean(input.medicines),
       alerts: Boolean(input.alerts),
-    }));
+    };
+    if (supabase && isSupabaseConfigured) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (sessionError || !userId) return { success: false, error: 'Inicia sesión para guardar las preferencias.' };
+
+      const { error } = await supabase.from('notification_preferences').upsert({
+        user_id: userId,
+        ...preferences,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) return { success: false, error: error.message };
+    }
+
+    await AsyncStorage.setItem(PROFILE_NOTIFICATION_KEY, JSON.stringify(preferences));
     return { success: true };
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'No se pudieron guardar las notificaciones.',
+    };
+  }
+}
+
+export async function getLinkedPatientByCode(patientCode: string): Promise<{ success: boolean; error?: string; patientId?: string; patientName?: string }> {
+  if (!supabase || !isSupabaseConfigured) {
+    return { success: false, error: 'Supabase no está configurado.' };
+  }
+
+  if (!patientCode.trim()) return { success: false, error: 'Ingresa un código QR válido.' };
+
+  try {
+    const { data: patient, error } = await supabase
+      .from('pacientes')
+      .select('id, nombre')
+      .eq('codigo_qr_token', patientCode.trim())
+      .maybeSingle();
+
+    if (error || !patient) {
+      return { success: false, error: 'El código no es válido o el paciente no está asociado a tu cuenta.' };
+    }
+
+    return { success: true, patientId: patient.id, patientName: patient.nombre };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'No se pudo validar el código QR.',
     };
   }
 }
@@ -628,12 +799,35 @@ export async function removePatientFromCurrentUser(patientId: string): Promise<{
   }
 }
 
+export async function selectPatientForCurrentUser(patientId: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase || !isSupabaseConfigured) {
+    return { success: false, error: 'Supabase no está configurado.' };
+  }
+
+  if (!patientId) {
+    return { success: false, error: 'No se pudo identificar al paciente.' };
+  }
+
+  try {
+    const { error } = await supabase.rpc('select_patient_for_current_user', {
+      p_patient_id: patientId,
+    });
+    return error ? { success: false, error: error.message } : { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'No se pudo seleccionar el paciente.',
+    };
+  }
+}
+
 export async function getProfileSettingsData(): Promise<ProfileSettingsData> {
   const fallback: ProfileSettingsData = {
     name: 'Usuario',
     email: 'sin-correo@linkcare.cl',
     phone: 'Sin teléfono',
     role: 'Sin rol asignado',
+    canSelectLinkedPatient: false,
     linkedPatients: [],
     linkedPatientRecords: [],
     notifications: {
@@ -672,11 +866,16 @@ export async function getProfileSettingsData(): Promise<ProfileSettingsData> {
 
     const { data: links, error: linksError } = await supabase
       .from('paciente_usuario')
-      .select('paciente_id, es_principal, created_at')
-      .eq('usuario_id', userId);
+      .select('paciente_id, relacion, es_principal, created_at')
+      .eq('usuario_id', userId)
+      .eq('relacion', currentUser.rol)
+      .order('es_principal', { ascending: false })
+      .order('created_at', { ascending: true })
+      .order('paciente_id', { ascending: true });
 
     const linkedPatients: string[] = [];
-    const linkedPatientRecords: Array<{ id: string; name: string }> = [];
+    const linkedPatientRecords: { id: string; name: string; isPrimary: boolean }[] = [];
+    let hasPrimaryPatient = false;
 
     if (!linksError && links?.length) {
       for (const link of links) {
@@ -688,7 +887,15 @@ export async function getProfileSettingsData(): Promise<ProfileSettingsData> {
 
         if (patient?.nombre) {
           linkedPatients.push(patient.nombre);
-          linkedPatientRecords.push({ id: link.paciente_id, name: patient.nombre });
+          const isPrimary = link.es_principal === true && !hasPrimaryPatient;
+          if (isPrimary) {
+            hasPrimaryPatient = true;
+          }
+          linkedPatientRecords.push({
+            id: link.paciente_id,
+            name: patient.nombre,
+            isPrimary,
+          });
         }
       }
     }
@@ -704,6 +911,7 @@ export async function getProfileSettingsData(): Promise<ProfileSettingsData> {
       email: currentUser.email ?? fallback.email,
       phone: currentUser.telefono ?? fallback.phone,
       role: roleLabel,
+      canSelectLinkedPatient: currentUser.rol === 'cuidador' || currentUser.rol === 'familiar',
       linkedPatients,
       linkedPatientRecords,
       notifications: savedNotifications,
@@ -727,11 +935,14 @@ export async function saveProfileSettings(input: { name: string; email: string; 
 
     const userId = sessionData.session.user.id;
     const trimmedName = input.name.trim();
-    const trimmedEmail = input.email.trim();
+    const trimmedEmail = input.email.trim().toLowerCase();
     const trimmedPhone = input.phone.trim();
 
     if (!trimmedName || !trimmedEmail) {
       return { success: false, error: 'Nombre y correo son obligatorios.' };
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return { success: false, error: 'Ingresa un correo electrónico válido.' };
     }
 
     const nextProfile = {
@@ -791,28 +1002,23 @@ export async function getMedicationHistoryData(): Promise<MedicationHistoryItem[
       return empty;
     }
 
-    const items: MedicationHistoryItem[] = [];
+    const { data: records, error: recordsError } = await supabase
+      .from('registro_medicacion')
+      .select('id, medicamento_id, estado, fecha_hora, registrado_por')
+      .in('medicamento_id', medicationRows.map((medication) => medication.id))
+      .order('fecha_hora', { ascending: false });
 
-    for (const medication of medicationRows) {
-      const { data: latestRecord } = await supabase
-        .from('registro_medicacion')
-        .select('estado, fecha_hora, registrado_por')
-        .eq('medicamento_id', medication.id)
-        .order('fecha_hora', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    if (recordsError || !records?.length) return empty;
+    const medicationNames = new Map(medicationRows.map((medication) => [medication.id, medication.nombre]));
 
-      items.push({
-        name: medication.nombre,
-        date: latestRecord?.fecha_hora
-          ? new Date(latestRecord.fecha_hora).toLocaleDateString('es-CL')
-          : new Date().toLocaleDateString('es-CL'),
-        recorder: latestRecord?.registrado_por ? 'Registro del sistema' : 'Sin registro',
-        status: latestRecord?.estado === 'administrado' ? 'Administrada' : 'No administrada',
-      });
-    }
-
-    return items.length ? items : empty;
+    return records.map((record) => ({
+      id: record.id,
+      name: medicationNames.get(record.medicamento_id) ?? 'Medicamento',
+      date: record.fecha_hora,
+      time: new Date(record.fecha_hora).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
+      recorder: record.registrado_por ? `Usuario ${record.registrado_por.slice(0, 8)}` : 'Usuario no disponible',
+      status: record.estado === 'administrado' ? 'Administrada' : 'No administrada',
+    }));
   } catch {
     return empty;
   }
@@ -855,7 +1061,7 @@ export async function saveClinicalAnnotation(input: {
     const categoryLabel = input.category?.trim() || 'Observación';
     const persistedContent = `[${categoryLabel}] ${finalContent}`;
 
-    const { error } = await supabase.rpc('save_clinical_annotation', {
+    const { data: annotationId, error } = await supabase.rpc('save_clinical_annotation', {
       p_paciente_id: patient.id,
       p_contenido: persistedContent,
       p_es_registro_voz: input.isVoiceRecording ?? false,
@@ -863,6 +1069,14 @@ export async function saveClinicalAnnotation(input: {
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    if (annotationId) {
+      await dispatchRelevantNotification({
+        eventId: annotationId,
+        eventType: 'clinical_annotation',
+        patientId: patient.id,
+      });
     }
 
     return { success: true };
@@ -889,7 +1103,17 @@ export type PatientMedication = {
   nombre: string;
   dosis: string;
   hora_inicio: string;
+  fecha_inicio: string;
+  fecha_fin: string | null;
   estado: string;
+};
+
+export type PendingMedicationApproval = {
+  id: string;
+  patientName: string;
+  name: string;
+  dose: string;
+  frequencyHours: number;
 };
 
 export async function getDoctorPatients(): Promise<{ success: boolean; patients: DoctorPatient[]; error?: string }> {
@@ -941,6 +1165,7 @@ export async function getDoctorPatients(): Promise<{ success: boolean; patients:
 export async function createPatientForCurrentUser(input: {
   nombre: string;
   fechaNacimiento: string;
+  diagnosticoPrincipal?: string;
   rut?: string;
   alergias?: string;
   contactoEmergencia?: string;
@@ -963,6 +1188,7 @@ export async function createPatientForCurrentUser(input: {
     const { data: patientId, error } = await supabase.rpc('create_patient_for_current_user', {
       p_nombre: nombre,
       p_fecha_nacimiento: input.fechaNacimiento,
+      p_diagnostico_principal: input.diagnosticoPrincipal?.trim() || null,
       p_rut: input.rut?.trim() || null,
       p_alergias: input.alergias?.trim() || null,
       p_contacto_emergencia: input.contactoEmergencia?.trim() || null,
@@ -1009,7 +1235,7 @@ export async function createMedicationPrescription(input: {
   }
 
   try {
-    const { error } = await supabase.from('medicamentos').insert({
+    const { data: prescription, error } = await supabase.from('medicamentos').insert({
       paciente_id: input.patientId,
       recetado_por: profile.id,
       nombre: input.nombre.trim(),
@@ -1020,13 +1246,114 @@ export async function createMedicationPrescription(input: {
       fecha_fin: input.fechaFin || null,
       indicaciones: input.indicaciones?.trim() || null,
       estado: 'pendiente',
-    });
+    }).select('id').single();
 
-    return error ? { success: false, error: error.message } : { success: true };
+    if (error) return { success: false, error: error.message };
+    if (prescription?.id) {
+      await dispatchRelevantNotification({
+        eventId: prescription.id,
+        eventType: 'prescription_pending',
+        patientId: input.patientId,
+      });
+    }
+    return { success: true };
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'No se pudo guardar la prescripción.',
+    };
+  }
+}
+
+export async function getPendingMedicationApprovals(): Promise<{ success: boolean; approvals: PendingMedicationApproval[]; error?: string }> {
+  if (!supabase || !isSupabaseConfigured) {
+    return { success: false, approvals: [], error: 'Supabase no está configurado.' };
+  }
+
+  const profile = await getCurrentUserProfile();
+  if (!profile?.id || profile.rol !== 'medico') {
+    return { success: false, approvals: [], error: 'Solo un médico puede consultar las prescripciones pendientes.' };
+  }
+
+  try {
+    const { data: links, error: linksError } = await supabase
+      .from('paciente_usuario')
+      .select('paciente_id')
+      .eq('usuario_id', profile.id)
+      .eq('relacion', 'medico');
+
+    if (linksError) return { success: false, approvals: [], error: linksError.message };
+    const patientIds = (links ?? []).map((link) => link.paciente_id);
+    if (!patientIds.length) return { success: true, approvals: [] };
+
+    const { data: medications, error: medicationsError } = await supabase
+      .from('medicamentos')
+      .select('id, paciente_id, nombre, dosis, frecuencia_horas')
+      .in('paciente_id', patientIds)
+      .eq('estado', 'pendiente')
+      .order('created_at', { ascending: true });
+
+    if (medicationsError) return { success: false, approvals: [], error: medicationsError.message };
+    if (!medications?.length) return { success: true, approvals: [] };
+
+    const medicationPatientIds = [...new Set(medications.map((medication) => medication.paciente_id))];
+    const { data: patients, error: patientsError } = await supabase
+      .from('pacientes')
+      .select('id, nombre')
+      .in('id', medicationPatientIds);
+
+    if (patientsError) return { success: false, approvals: [], error: patientsError.message };
+    const patientNames = new Map((patients ?? []).map((patient) => [patient.id, patient.nombre]));
+
+    return {
+      success: true,
+      approvals: medications.map((medication) => ({
+        id: medication.id,
+        patientName: patientNames.get(medication.paciente_id) ?? 'Paciente',
+        name: medication.nombre,
+        dose: medication.dosis,
+        frequencyHours: medication.frecuencia_horas,
+      })),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      approvals: [],
+      error: error instanceof Error ? error.message : 'No se pudieron consultar las prescripciones pendientes.',
+    };
+  }
+}
+
+export async function reviewMedicationPrescription(input: { medicationId: string; approve: boolean }): Promise<{ success: boolean; error?: string }> {
+  if (!supabase || !isSupabaseConfigured) {
+    return { success: false, error: 'Supabase no está configurado.' };
+  }
+
+  try {
+    const { data: reviewedId, error } = await supabase.rpc('review_medication_prescription', {
+      p_medicamento_id: input.medicationId,
+      p_aprobada: input.approve,
+    });
+    if (error) return { success: false, error: error.message };
+    if (reviewedId) {
+      const { data: medication } = await supabase
+        .from('medicamentos')
+        .select('paciente_id')
+        .eq('id', input.medicationId)
+        .maybeSingle();
+      if (medication?.paciente_id) {
+        await dispatchRelevantNotification({
+          eventId: reviewedId,
+          eventType: 'prescription_reviewed',
+          patientId: medication.paciente_id,
+        });
+      }
+    }
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'No se pudo revisar la prescripción.',
     };
   }
 }
@@ -1059,7 +1386,7 @@ export async function getCaregiverMedications(): Promise<{ success: boolean; med
 
     const { data: medications, error: medicationsError } = await supabase
       .from('medicamentos')
-      .select('id, paciente_id, nombre, dosis, hora_inicio, estado')
+      .select('id, paciente_id, nombre, dosis, hora_inicio, fecha_inicio, fecha_fin, estado')
       .in('paciente_id', patientIds)
       .order('hora_inicio', { ascending: true });
 
@@ -1093,13 +1420,26 @@ export async function recordMedicationAdministration(input: {
   }
 
   try {
-    const { error } = await supabase.rpc('register_medication_administration', {
+    const { data: medication } = await supabase
+      .from('medicamentos')
+      .select('paciente_id')
+      .eq('id', input.medicationId)
+      .maybeSingle();
+    const { data: recordId, error } = await supabase.rpc('register_medication_administration', {
       p_medicamento_id: input.medicationId,
       p_observaciones: input.observations?.trim() || null,
       p_administrado: input.isAdministered,
     });
 
-    return error ? { success: false, error: error.message } : { success: true };
+    if (error) return { success: false, error: error.message };
+    if (recordId && medication?.paciente_id) {
+      await dispatchRelevantNotification({
+        eventId: recordId,
+        eventType: 'medication_administered',
+        patientId: medication.paciente_id,
+      });
+    }
+    return { success: true };
   } catch (error) {
     return {
       success: false,

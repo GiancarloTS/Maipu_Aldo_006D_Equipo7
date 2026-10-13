@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 import { ProfileSettingsSkeleton } from '@/components/ui/skeleton';
-import { getProfileSettingsData, linkPatientToCurrentUser, removePatientFromCurrentUser, saveNotificationSettings, saveProfileSettings, type ProfileSettingsData } from '@/lib/linkcare-data';
+import { getProfileSettingsData, linkPatientToCurrentUser, removePatientFromCurrentUser, saveNotificationSettings, saveProfileSettings, selectPatientForCurrentUser, type ProfileSettingsData } from '@/lib/linkcare-data';
 import { supabase } from '@/lib/supabase';
 
 export default function ProfileSettingsScreen() {
@@ -26,6 +26,7 @@ export default function ProfileSettingsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLinkingPatient, setIsLinkingPatient] = useState(false);
   const [removingPatientId, setRemovingPatientId] = useState<string | null>(null);
+  const [selectingPatientId, setSelectingPatientId] = useState<string | null>(null);
   const [patientCode, setPatientCode] = useState('');
   const [form, setForm] = useState({
     name: '',
@@ -102,7 +103,12 @@ export default function ProfileSettingsScreen() {
       setData((current) => current ? { ...current, notifications: nextState } : current);
     }
 
-    await saveNotificationSettings(nextState);
+    const result = await saveNotificationSettings(nextState);
+    if (!result.success) {
+      setNotifications(notifications);
+      setData((current) => current ? { ...current, notifications } : current);
+      Alert.alert('No se guardaron las preferencias', result.error ?? 'Inténtalo nuevamente.');
+    }
   };
 
   const handleLinkPatient = async () => {
@@ -156,6 +162,21 @@ export default function ProfileSettingsScreen() {
         },
       ],
     );
+  };
+
+  const handleSelectPatient = async (patientId: string, patientName: string) => {
+    setSelectingPatientId(patientId);
+    const result = await selectPatientForCurrentUser(patientId);
+    setSelectingPatientId(null);
+
+    if (!result.success) {
+      Alert.alert('No se pudo seleccionar', result.error ?? 'Inténtalo nuevamente.');
+      return;
+    }
+
+    const next = await getProfileSettingsData();
+    setData(next);
+    Alert.alert('Paciente seleccionado', `${patientName} es ahora el paciente activo de tu cuenta.`);
   };
 
   const handleSignOut = async () => {
@@ -305,6 +326,19 @@ export default function ProfileSettingsScreen() {
               data.linkedPatientRecords.map((patient) => (
                 <View key={patient.id} style={styles.linkedCard}>
                   <Text style={styles.linkedText}>{patient.name}</Text>
+                  {data.canSelectLinkedPatient && (
+                    <Pressable
+                      style={[styles.selectPatientButton, patient.isPrimary && styles.selectedPatientButton]}
+                      onPress={() => void handleSelectPatient(patient.id, patient.name)}
+                      disabled={patient.isPrimary || selectingPatientId !== null || removingPatientId === patient.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={patient.isPrimary ? `${patient.name} es el paciente seleccionado` : `Seleccionar a ${patient.name}`}
+                    >
+                      <Text style={[styles.selectPatientButtonText, patient.isPrimary && styles.selectedPatientButtonText]}>
+                        {selectingPatientId === patient.id ? 'Seleccionando...' : patient.isPrimary ? 'Seleccionado' : 'Seleccionar'}
+                      </Text>
+                    </Pressable>
+                  )}
                   <Pressable
                     style={styles.unlinkButton}
                     onPress={() => confirmRemovePatient(patient.id, patient.name)}
@@ -512,9 +546,24 @@ const styles = StyleSheet.create({
   },
   linkedText: {
     flex: 1,
+    minWidth: 80,
     color: '#023047',
     fontWeight: '700',
   },
+  selectPatientButton: {
+    minHeight: 38,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#028090',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedPatientButton: {
+    backgroundColor: '#e6f4f5',
+  },
+  selectPatientButtonText: { color: '#006B73', fontSize: 12, fontWeight: '800' },
+  selectedPatientButtonText: { color: '#475569' },
   unlinkButton: {
     minHeight: 38,
     paddingHorizontal: 12,

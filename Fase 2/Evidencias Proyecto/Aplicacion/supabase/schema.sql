@@ -19,6 +19,7 @@ CREATE TABLE public.pacientes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   nombre text NOT NULL,
   fecha_nacimiento date NOT NULL,
+  diagnostico_principal text,
   rut text UNIQUE,
   codigo_qr_token text NOT NULL UNIQUE,
   alergias text,
@@ -53,12 +54,15 @@ CREATE TABLE public.medicamentos (
   estado public.medicamento_estado NOT NULL DEFAULT 'pendiente',
   aprobado_por uuid,
   fecha_aprobacion timestamp with time zone,
+  revisado_por uuid,
+  fecha_revision timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT medicamentos_pkey PRIMARY KEY (id),
   CONSTRAINT medicamentos_paciente_id_fkey FOREIGN KEY (paciente_id) REFERENCES public.pacientes(id),
   CONSTRAINT medicamentos_recetado_por_fkey FOREIGN KEY (recetado_por) REFERENCES public.usuarios(id),
   CONSTRAINT medicamentos_aprobado_por_fkey FOREIGN KEY (aprobado_por) REFERENCES public.usuarios(id),
+  CONSTRAINT medicamentos_revisado_por_fkey FOREIGN KEY (revisado_por) REFERENCES public.usuarios(id),
   CONSTRAINT medicamentos_vigencia_check CHECK (fecha_fin IS NULL OR fecha_fin >= fecha_inicio)
 );
 
@@ -87,6 +91,30 @@ CREATE TABLE public.variables_salud (
   CONSTRAINT variables_salud_pkey PRIMARY KEY (id),
   CONSTRAINT variables_salud_paciente_id_fkey FOREIGN KEY (paciente_id) REFERENCES public.pacientes(id),
   CONSTRAINT variables_salud_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES public.usuarios(id)
+);
+
+CREATE TABLE public.push_devices (
+  user_id uuid NOT NULL,
+  expo_push_token text NOT NULL,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT push_devices_pkey PRIMARY KEY (user_id, expo_push_token),
+  CONSTRAINT push_devices_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.notification_preferences (
+  user_id uuid NOT NULL,
+  medicines boolean NOT NULL DEFAULT true,
+  alerts boolean NOT NULL DEFAULT true,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id),
+  CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.notification_dispatches (
+  event_id uuid NOT NULL,
+  event_type text NOT NULL,
+  notified_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT notification_dispatches_pkey PRIMARY KEY (event_id, event_type)
 );
 
 CREATE TABLE public.anotaciones (
