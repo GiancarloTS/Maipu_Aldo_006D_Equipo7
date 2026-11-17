@@ -1,50 +1,58 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { getDashboardOverviewData, getProfileSettingsData, type DashboardOverviewData } from '@/lib/linkcare-data';
+import { getMedicalPatientHistory, getProfileSettingsData, type MedicalPatientHistoryData } from '@/lib/linkcare-data';
 
-const categories = ['Todo', 'Observación', 'Constantes', 'Alerta'] as const;
+const categories = ['Todo', 'Medicamentos', 'Observaciones', 'Salud'] as const;
 
 export default function AnnotationsTimelineScreen() {
+  const { patientId: requestedPatientId } = useLocalSearchParams<{ patientId?: string }>();
   const [selectedCategory, setSelectedCategory] = useState<(typeof categories)[number]>('Todo');
-  const [data, setData] = useState<DashboardOverviewData | null>(null);
-  const [linkedPatients, setLinkedPatients] = useState<string[]>([]);
+  const [data, setData] = useState<MedicalPatientHistoryData | null>(null);
+  const [patientId, setPatientId] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      const [next, profile] = await Promise.all([
-        getDashboardOverviewData(),
-        getProfileSettingsData(),
-      ]);
+      setIsLoading(true);
+      setErrorMessage('');
+      setData(null);
+      const profile = await getProfileSettingsData();
+      const selectedPatientId = typeof requestedPatientId === 'string' && requestedPatientId
+        ? requestedPatientId
+        : (profile.linkedPatientRecords.find((patient) => patient.isPrimary) ?? profile.linkedPatientRecords[0])?.id ?? '';
 
-      if (active) {
-        setData(next);
-        setLinkedPatients(profile.linkedPatients ?? []);
+      if (!selectedPatientId) {
+        if (active) {
+          setData(null);
+          setPatientId('');
+          setIsLoading(false);
+        }
+        return;
       }
+
+      const result = await getMedicalPatientHistory(selectedPatientId);
+      if (!active) return;
+      setPatientId(selectedPatientId);
+      setData(result.data ?? null);
+      setErrorMessage(result.error ?? '');
+      setIsLoading(false);
     };
 
-    load();
+    void load();
     return () => {
       active = false;
     };
-  }, []);
+  }, [requestedPatientId]);
 
-  const timeline = (data?.annotations ?? []).map((item, index) => {
-    const category = item.title || 'Observación';
-
-    return {
-      category,
-      title: item.detail,
-      author: item.author,
-      date: `Registro ${index + 1}`,
-    };
-  });
-
-  const visibleItems = selectedCategory === 'Todo' ? timeline : timeline.filter((item) => item.category === selectedCategory);
-  const hasPatient = linkedPatients.length > 0;
+  const timeline = data?.events ?? [];
+  const visibleItems = selectedCategory === 'Todo'
+    ? timeline
+    : timeline.filter((item) => item.category === selectedCategory);
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
@@ -52,10 +60,18 @@ export default function AnnotationsTimelineScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
-        <Text style={styles.title}>Cronología clínica</Text>
+        <View>
+          <Text style={styles.eyebrow}>HISTORIAL DEL PACIENTE</Text>
+          <Text style={styles.title}>Cronología clínica</Text>
+        </View>
       </View>
 
-      {!hasPatient && (
+      {data ? <Text style={styles.patientName}>{data.name}</Text> : null}
+
+      {isLoading ? <Text style={styles.emptyStateText}>Cargando historial clínico...</Text> : null}
+      {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+      {!isLoading && !patientId && (
         <View style={styles.emptyStateCard}>
           <Text style={styles.emptyStateTitle}>Sin paciente vinculado</Text>
           <Text style={styles.emptyStateText}>Vincula un paciente para ver la cronología y registrar observaciones reales.</Text>
@@ -65,22 +81,29 @@ export default function AnnotationsTimelineScreen() {
         </View>
       )}
 
-      <View style={styles.filterRow}>
-        {categories.map((category) => (
-          <Pressable key={category} onPress={() => setSelectedCategory(category)} style={[styles.filterPill, selectedCategory === category && styles.filterPillActive]}>
-            <Text style={[styles.filterText, selectedCategory === category && styles.filterTextActive]}>{category}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {patientId ? (
+        <View style={styles.filterRow}>
+          {categories.map((category) => (
+            <Pressable key={category} onPress={() => setSelectedCategory(category)} style={[styles.filterPill, selectedCategory === category && styles.filterPillActive]}>
+              <Text style={[styles.filterText, selectedCategory === category && styles.filterTextActive]}>{category}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      {!isLoading && data && !visibleItems.length ? (
+        <Text style={styles.emptyStateText}>No hay registros para mostrar en esta categoría.</Text>
+      ) : null}
 
       {visibleItems.map((item) => (
-        <View key={`${item.date}-${item.title}`} style={styles.card}>
+        <View key={item.id} style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.categoryTag}>{item.category}</Text>
-            <Text style={styles.dateText}>{item.date}</Text>
+            <Text style={styles.dateText}>{new Date(item.occurredAt).toLocaleString('es-CL')}</Text>
           </View>
           <Text style={styles.cardTitle}>{item.title}</Text>
-          <Text style={styles.author}>Autor: {item.author}</Text>
+          <Text style={styles.eventDetail}>{item.detail}</Text>
+          <Text style={styles.author}>Registrado por: {item.recordedBy}</Text>
         </View>
       ))}
     </ScrollView>
@@ -116,8 +139,29 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#023047',
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
+  },
+  eyebrow: {
+    color: '#006B73',
+    fontSize: 10,
+    letterSpacing: 0.8,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  patientName: {
+    color: '#475569',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+  errorText: {
+    color: '#991b1b',
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    padding: 14,
+    lineHeight: 20,
+    marginBottom: 14,
   },
   emptyStateCard: {
     backgroundColor: '#fff',
@@ -139,7 +183,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   emptyStateButton: {
-    backgroundColor: '#028090',
+    backgroundColor: '#006B73',
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
@@ -163,8 +207,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   filterPillActive: {
-    backgroundColor: '#028090',
-    borderColor: '#028090',
+    backgroundColor: '#006B73',
+    borderColor: '#006B73',
   },
   filterText: {
     color: '#023047',
@@ -188,9 +232,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryTag: {
-    backgroundColor: '#e0f2fe',
+    backgroundColor: '#E6F4F2',
     borderRadius: 999,
-    color: '#0369a1',
+    color: '#006B73',
     fontSize: 10,
     fontWeight: '800',
     paddingHorizontal: 8,
@@ -204,6 +248,12 @@ const styles = StyleSheet.create({
     color: '#023047',
     fontSize: 18,
     fontWeight: '800',
+    marginBottom: 6,
+  },
+  eventDetail: {
+    color: '#334155',
+    fontSize: 14,
+    lineHeight: 20,
     marginBottom: 8,
   },
   author: {

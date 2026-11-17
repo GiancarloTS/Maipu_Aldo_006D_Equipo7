@@ -9,6 +9,7 @@ export default function QRPatientSummaryScreen() {
   const { patientId } = useLocalSearchParams<{ patientId?: string }>();
   const [data, setData] = useState<PatientSummaryData | null>(null);
   const [linkedPatients, setLinkedPatients] = useState<string[]>([]);
+  const [activePatientId, setActivePatientId] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -22,6 +23,11 @@ export default function QRPatientSummaryScreen() {
       if (active) {
         setData(next);
         setLinkedPatients(profile.linkedPatients ?? []);
+        setActivePatientId(
+          typeof patientId === 'string' && patientId
+            ? patientId
+            : (profile.linkedPatientRecords.find((patient) => patient.isPrimary) ?? profile.linkedPatientRecords[0])?.id ?? '',
+        );
       }
     };
 
@@ -46,7 +52,10 @@ export default function QRPatientSummaryScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
-        <Text style={styles.title}>Ficha del paciente</Text>
+        <View>
+          <Text style={styles.eyebrow}>INFORMACIÓN PARA EL CUIDADO</Text>
+          <Text style={styles.title}>Ficha del paciente</Text>
+        </View>
       </View>
 
       {!hasPatient && (
@@ -89,7 +98,12 @@ export default function QRPatientSummaryScreen() {
         {data?.qrCode ? <Text style={styles.qrToken}>{data.qrCode}</Text> : null}
       </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.push('/dashboard' as any)}>
+      <Pressable
+        style={styles.primaryButton}
+        onPress={() => router.push({ pathname: '/annotations' as any, params: { patientId: activePatientId } })}
+        accessibilityRole="button"
+        accessibilityLabel="Ver historial clínico completo"
+      >
         <Text style={styles.primaryText}>Ver historial clínico completo</Text>
       </Pressable>
     </ScrollView>
@@ -125,14 +139,21 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#023047',
-    fontSize: 28,
+    fontSize: 25,
     fontWeight: '800',
+  },
+  eyebrow: {
+    color: '#006B73',
+    fontSize: 10,
+    letterSpacing: 0.8,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
     borderColor: '#dfeaf1',
@@ -142,7 +163,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 17,
-    backgroundColor: '#02c39a',
+    backgroundColor: '#028090',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -162,7 +183,7 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 14,
     borderWidth: 1,
     borderColor: '#dfeaf1',
@@ -207,15 +228,15 @@ const styles = StyleSheet.create({
   },
   registerButtonText: { color: '#00545B', fontWeight: '700' },
   qrCard: {
-    backgroundColor: '#e8f6fb',
-    borderRadius: 16,
-    padding: 14,
+    backgroundColor: '#E6F4F2',
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#bee8f1',
+    borderColor: '#C4E8E2',
     marginBottom: 18,
   },
   qrLabel: {
-    color: '#0369a1',
+    color: '#006B73',
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 6,
@@ -251,9 +272,9 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     marginTop: 14,
-    backgroundColor: '#028090',
-    borderRadius: 16,
-    paddingVertical: 18,
+    backgroundColor: '#006B73',
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },

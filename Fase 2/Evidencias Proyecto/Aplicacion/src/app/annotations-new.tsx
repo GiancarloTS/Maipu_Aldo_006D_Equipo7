@@ -80,7 +80,10 @@ export default function NewAnnotationScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
-        <Text style={styles.title}>Nueva anotación</Text>
+        <View>
+          <Text style={styles.eyebrow}>HISTORIAL DEL PACIENTE</Text>
+          <Text style={styles.title}>Nueva anotación</Text>
+        </View>
       </View>
 
       {!linkedPatients.length && (
@@ -172,8 +175,15 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#023047',
-    fontSize: 28,
+    fontSize: 25,
     fontWeight: '800',
+  },
+  eyebrow: {
+    color: '#006B73',
+    fontSize: 10,
+    letterSpacing: 0.8,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   emptyStateCard: {
     backgroundColor: '#fff',
@@ -225,8 +235,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   chipActive: {
-    backgroundColor: '#028090',
-    borderColor: '#028090',
+    backgroundColor: '#006B73',
+    borderColor: '#006B73',
   },
   chipText: {
     color: '#023047',
@@ -276,7 +286,7 @@ const styles = StyleSheet.create({
     color: '#023047',
   },
   primaryButton: {
-    backgroundColor: '#028090',
+    backgroundColor: '#006B73',
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',

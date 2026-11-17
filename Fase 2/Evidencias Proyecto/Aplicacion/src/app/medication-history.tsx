@@ -64,7 +64,10 @@ export default function MedicationHistoryScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
-        <Text style={styles.title}>Historial</Text>
+        <View>
+          <Text style={styles.eyebrow}>TRATAMIENTO</Text>
+          <Text style={styles.title}>Historial</Text>
+        </View>
       </View>
 
       <View style={styles.summaryRow}>
@@ -110,6 +113,12 @@ export default function MedicationHistoryScreen() {
           <Text style={styles.meta}>Registrado por: {item.recorder}</Text>
         </View>
       ))}
+      {hasPatient && visibleHistory.length === 0 ? (
+        <View style={styles.emptyStateCard}>
+          <Text style={styles.emptyStateTitle}>Sin registros en este período</Text>
+          <Text style={styles.emptyStateText}>Cuando se registren dosis, aparecerán aquí con su fecha y responsable.</Text>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -143,8 +152,15 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#023047',
-    fontSize: 28,
+    fontSize: 25,
     fontWeight: '800',
+  },
+  eyebrow: {
+    color: '#006B73',
+    fontSize: 11,
+    letterSpacing: 0.8,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -154,8 +170,8 @@ const styles = StyleSheet.create({
   summaryCard: {
     flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#dfeaf1',
     alignItems: 'center',
@@ -185,8 +201,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   filterPillActive: {
-    backgroundColor: '#028090',
-    borderColor: '#028090',
+    backgroundColor: '#006B73',
+    borderColor: '#006B73',
   },
   filterText: {
     color: '#023047',

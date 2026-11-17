@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { formatTime, mapStatus, type VisualMedicationStatus } from '@/lib/linkcare-utils';
+import { calculateAge, formatTime, getCurrentMedicationStatus, mapStatus, type VisualMedicationStatus } from '@/lib/linkcare-utils';
 import { dispatchRelevantNotification } from '@/lib/push-notifications';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
@@ -26,6 +26,7 @@ function parseAnnotationContent(content: string): { category: string; detail: st
 export type RoleKey = 'cuidador' | 'familiar' | 'medico';
 
 export type MedicationRow = {
+  id: string;
   name: string;
   time: string;
   status: VisualMedicationStatus;
@@ -57,55 +58,6 @@ type PatientRow = {
   codigo_qr_token?: string | null;
   alergias?: string | null;
   contacto_emergencia?: string | null;
-};
-
-const fallbackData: Record<RoleKey, ScreenData> = {
-  cuidador: {
-    patientName: 'Elena Ribeiro',
-    patientMeta: '79 años · Plan Crónico',
-    summary: '4 medicamentos del día',
-    medications: [
-      { name: 'Metformina 850mg', time: '08:00 AM', status: 'Tomado' },
-      { name: 'Enalapril 10mg', time: '09:00 PM', status: 'Pendiente' },
-    ],
-    alerts: [
-      'Horario de medicamentos en 30 minutos',
-      'Revisión de presión requerida esta tarde',
-    ],
-    history: [
-      'Se registró observación de mareo post-almuerzo.',
-      'Presión reportada: 135/85.',
-    ],
-  },
-  familiar: {
-    patientName: 'Elena Ribeiro',
-    patientMeta: 'Responsable: Familia Silva',
-    summary: '2 de 4 medicinas registradas',
-    medications: [
-      { name: 'Metformina 850mg', time: '08:00 AM', status: 'Tomado' },
-      { name: 'Aspirina 100mg', time: '12:00 PM', status: 'Pendiente' },
-    ],
-    alerts: ['Se requiere confirmación adicional de la dosis.'],
-    history: [
-      'Presión 135/85 reportada.',
-      'Se registró observación de mareo post-almuerzo.',
-    ],
-  },
-  medico: {
-    patientName: 'Elena Ribeiro',
-    patientMeta: 'Paciente atendido por el médico de turno',
-    summary: '8 pacientes activos',
-    medications: [
-      { name: 'Metformina 850mg', time: '08:00 AM', status: 'Aprobado' },
-      { name: 'Enalapril 10mg', time: '09:00 PM', status: 'Revisión' },
-    ],
-    alerts: ['Hay 2 medicamentos pendientes de aprobación.'],
-    history: [
-      'Control clínico actualizado.',
-      'Se revisó evolución del paciente.',
-    ],
-    totalPatients: 8,
-  },
 };
 
 async function getCurrentUserProfile(): Promise<UserProfile | null> {
@@ -207,6 +159,7 @@ export type DashboardOverviewData = {
   medications: MedicationRow[];
   alerts: string[];
   annotations: Array<{ title: string; detail: string; author: string }>;
+  error?: string;
 };
 
 export type ProfileSettingsData = {
@@ -251,6 +204,7 @@ export type PatientSummaryData = {
 
 export type MedicalPatientEvent = {
   id: string;
+  category: 'Medicamentos' | 'Observaciones' | 'Salud';
   title: string;
   detail: string;
   occurredAt: string;
@@ -276,6 +230,7 @@ export type MedicalPatientHistoryData = {
     id: string;
     name: string;
     dose: string;
+    instructions: string | null;
     frequencyHours: number;
     startTime: string;
     startDate: string;
@@ -323,7 +278,7 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
 
     const { data: medicationRows, error: medicationError } = await supabase
       .from('medicamentos')
-      .select('id, nombre, dosis, frecuencia_horas, hora_inicio, fecha_inicio, fecha_fin, estado')
+      .select('id, nombre, dosis, indicaciones, frecuencia_horas, hora_inicio, fecha_inicio, fecha_fin, estado, created_at, recetado_por, aprobado_por, fecha_aprobacion, revisado_por, fecha_revision')
       .eq('paciente_id', patientId)
       .order('hora_inicio', { ascending: true });
 
@@ -369,10 +324,44 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
     }
 
     const medicationById = new Map((medicationRows ?? []).map((item) => [item.id, item]));
+    const prescriptionEvents: MedicalPatientEvent[] = (medicationRows ?? []).map((medication) => ({
+      id: `prescription-${medication.id}`,
+      category: 'Medicamentos',
+      title: `Prescripción: ${medication.nombre}`,
+      detail: `${medication.dosis} · cada ${medication.frecuencia_horas} h · ${mapStatus(medication.estado)}`,
+      occurredAt: medication.created_at,
+      recordedBy: medication.recetado_por ? `Usuario ${medication.recetado_por.slice(0, 8)}` : 'Usuario registrado',
+    }));
+    const reviewEvents: MedicalPatientEvent[] = (medicationRows ?? []).flatMap((medication) => {
+      if (medication.estado === 'aprobado' && medication.fecha_aprobacion) {
+        return [{
+          id: `approval-${medication.id}`,
+          category: 'Medicamentos',
+          title: `Prescripción aprobada: ${medication.nombre}`,
+          detail: medication.dosis,
+          occurredAt: medication.fecha_aprobacion,
+          recordedBy: medication.aprobado_por ? `Usuario ${medication.aprobado_por.slice(0, 8)}` : 'Usuario registrado',
+        }];
+      }
+
+      if (medication.estado === 'revision' && medication.fecha_revision) {
+        return [{
+          id: `review-${medication.id}`,
+          category: 'Medicamentos',
+          title: `Prescripción enviada a revisión: ${medication.nombre}`,
+          detail: medication.dosis,
+          occurredAt: medication.fecha_revision,
+          recordedBy: medication.revisado_por ? `Usuario ${medication.revisado_por.slice(0, 8)}` : 'Usuario registrado',
+        }];
+      }
+
+      return [];
+    });
     const administrationEvents: MedicalPatientEvent[] = (administrationResult.data ?? []).map((record) => {
       const medication = medicationById.get(record.medicamento_id);
       return {
         id: `med-${record.id}`,
+        category: 'Medicamentos',
         title: `${medication?.nombre ?? 'Medicamento'} ${record.estado === 'administrado' ? 'administrado' : record.estado === 'observado' ? 'no administrado' : 'actualizado'}`,
         detail: [medication?.dosis, record.observaciones].filter(Boolean).join(' · ') || 'Sin observaciones',
         occurredAt: record.fecha_hora,
@@ -384,6 +373,7 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
       const parsed = parseAnnotationContent(annotation.contenido ?? '');
       return {
         id: `note-${annotation.id}`,
+        category: 'Observaciones',
         title: parsed.category,
         detail: parsed.detail,
         occurredAt: annotation.fecha_hora,
@@ -393,15 +383,15 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
 
     const healthEvents: MedicalPatientEvent[] = (healthResult.data ?? []).map((variable) => ({
       id: `health-${variable.id}`,
+      category: 'Salud',
       title: `Medición: ${variable.tipo_variable}`,
       detail: [variable.valor, variable.unidad_medida].filter(Boolean).join(' '),
       occurredAt: variable.fecha_hora,
       recordedBy: variable.registrado_por ? `Usuario ${variable.registrado_por.slice(0, 8)}` : 'Usuario registrado',
     }));
 
-    const age = patient.fecha_nacimiento
-      ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años`
-      : 'No informada';
+    const calculatedAge = calculateAge(patient.fecha_nacimiento);
+    const age = calculatedAge === null ? 'No informada' : `${calculatedAge} años`;
 
     return {
       success: true,
@@ -415,13 +405,14 @@ export async function getMedicalPatientHistory(patientId: string): Promise<{ suc
           id: medication.id,
           name: medication.nombre,
           dose: medication.dosis,
+          instructions: medication.indicaciones,
           frequencyHours: medication.frecuencia_horas,
           startTime: medication.hora_inicio,
           startDate: medication.fecha_inicio,
           endDate: medication.fecha_fin,
           status: medication.estado,
         })),
-        events: [...administrationEvents, ...annotationEvents, ...healthEvents]
+        events: [...prescriptionEvents, ...reviewEvents, ...administrationEvents, ...annotationEvents, ...healthEvents]
           .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)),
       },
     };
@@ -554,20 +545,20 @@ export async function getPatientSummaryData(patientId?: string): Promise<Patient
       .from('medicamentos')
       .select('nombre')
       .eq('paciente_id', patient.id)
+      .neq('estado', 'revision')
       .limit(3);
 
-    const age = patient.fecha_nacimiento
-      ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años`
-      : 'Edad no disponible';
+    const calculatedAge = calculateAge(patient.fecha_nacimiento);
+    const age = calculatedAge === null ? 'Edad no disponible' : `${calculatedAge} años`;
 
     return {
       name: patient.nombre,
       age,
-      location: 'Hospital Central',
+      location: 'Ubicación no registrada',
       diagnosis: patient.diagnostico_principal?.trim() || 'Sin diagnóstico asignado',
       allergies: patient.alergias ?? 'Sin alergias registradas',
       medicines: (medicationRows ?? []).map((item) => item.nombre).join(', ') || 'Sin medicamentos registrados',
-      emergencyContact: patient.contacto_emergencia ?? '+56 9 8765 4321',
+      emergencyContact: patient.contacto_emergencia?.trim() || 'Sin contacto de emergencia',
       qrCode: patient.codigo_qr_token ?? '',
     };
   } catch {
@@ -598,22 +589,51 @@ export async function getDashboardOverviewData(): Promise<DashboardOverviewData>
       return empty;
     }
 
-    const { data: medicamentoData } = await supabase
+    const { data: medicamentoData, error: medicationError } = await supabase
       .from('medicamentos')
-      .select('nombre, hora_inicio, estado')
+      .select('id, nombre, hora_inicio, estado, frecuencia_horas')
       .eq('paciente_id', patient.id)
+      .neq('estado', 'revision')
       .order('hora_inicio', { ascending: true })
       .limit(4);
 
+    if (medicationError) {
+      return { ...empty, patientName: patient.nombre, error: medicationError.message };
+    }
+
+    const medicationIds = (medicamentoData ?? []).map((item) => item.id);
+    const { data: administrationData, error: administrationError } = medicationIds.length
+      ? await supabase
+          .from('registro_medicacion')
+          .select('medicamento_id, fecha_hora')
+          .in('medicamento_id', medicationIds)
+          .eq('estado', 'administrado')
+          .order('fecha_hora', { ascending: false })
+      : { data: [], error: null };
+
+    if (administrationError) {
+      return { ...empty, patientName: patient.nombre, error: administrationError.message };
+    }
+
+    const latestAdministration = new Map<string, string>();
+    for (const record of administrationData ?? []) {
+      if (!latestAdministration.has(record.medicamento_id)) {
+        latestAdministration.set(record.medicamento_id, record.fecha_hora);
+      }
+    }
+
     const medications = (medicamentoData ?? []).map((item) => ({
+      id: item.id,
       name: item.nombre,
       time: formatTime(item.hora_inicio),
-      status: mapStatus(item.estado),
+      status: mapStatus(getCurrentMedicationStatus(
+        item.estado,
+        item.frecuencia_horas,
+        latestAdministration.get(item.id),
+      )),
     }));
 
-    const patientAge = patient.fecha_nacimiento
-      ? new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()
-      : 0;
+    const patientAge = calculateAge(patient.fecha_nacimiento);
 
     const { data: annotationData } = await supabase
       .from('anotaciones')
@@ -633,7 +653,7 @@ export async function getDashboardOverviewData(): Promise<DashboardOverviewData>
 
     return {
       patientName: patient.nombre,
-      patientMeta: patientAge ? `${patientAge} años · Plan Crónico` : 'Paciente activo',
+      patientMeta: patientAge === null ? 'Paciente activo' : `${patientAge} años`,
       summary: `${medications.length || 0} medicamentos del día`,
       medications: medications.length ? medications : [],
       alerts: medications.some((item) => item.status === 'Pendiente')
@@ -641,8 +661,11 @@ export async function getDashboardOverviewData(): Promise<DashboardOverviewData>
         : ['Sin alertas nuevas.'],
       annotations: annotations.length ? annotations : [],
     };
-  } catch {
-    return empty;
+  } catch (error) {
+    return {
+      ...empty,
+      error: error instanceof Error ? error.message : 'No se pudo cargar el resumen del dashboard.',
+    };
   }
 }
 
@@ -1102,9 +1125,11 @@ export type PatientMedication = {
   paciente_id: string;
   nombre: string;
   dosis: string;
+  indicaciones: string | null;
   hora_inicio: string;
   fecha_inicio: string;
   fecha_fin: string | null;
+  frecuencia_horas: number;
   estado: string;
 };
 
@@ -1386,15 +1411,48 @@ export async function getCaregiverMedications(): Promise<{ success: boolean; med
 
     const { data: medications, error: medicationsError } = await supabase
       .from('medicamentos')
-      .select('id, paciente_id, nombre, dosis, hora_inicio, fecha_inicio, fecha_fin, estado')
+      .select('id, paciente_id, nombre, dosis, indicaciones, hora_inicio, fecha_inicio, fecha_fin, frecuencia_horas, estado')
       .in('paciente_id', patientIds)
+      .neq('estado', 'revision')
       .order('hora_inicio', { ascending: true });
 
     if (medicationsError) {
       return { success: false, medications: [], canAdminister: profile.rol === 'cuidador', error: medicationsError.message };
     }
 
-    return { success: true, medications: (medications ?? []) as PatientMedication[], canAdminister: profile.rol === 'cuidador' };
+    const medicationIds = (medications ?? []).map((medication) => medication.id);
+    const { data: administrations, error: administrationError } = medicationIds.length
+      ? await supabase
+          .from('registro_medicacion')
+          .select('medicamento_id, fecha_hora')
+          .in('medicamento_id', medicationIds)
+          .eq('estado', 'administrado')
+          .order('fecha_hora', { ascending: false })
+      : { data: [], error: null };
+
+    if (administrationError) {
+      return { success: false, medications: [], canAdminister: profile.rol === 'cuidador', error: administrationError.message };
+    }
+
+    const latestAdministration = new Map<string, string>();
+    for (const record of administrations ?? []) {
+      if (!latestAdministration.has(record.medicamento_id)) {
+        latestAdministration.set(record.medicamento_id, record.fecha_hora);
+      }
+    }
+
+    const currentMedications = (medications ?? []).map((medication) => {
+      return {
+        ...(medication as PatientMedication),
+        estado: getCurrentMedicationStatus(
+          medication.estado,
+          medication.frecuencia_horas,
+          latestAdministration.get(medication.id),
+        ),
+      };
+    });
+
+    return { success: true, medications: currentMedications, canAdminister: profile.rol === 'cuidador' };
   } catch (error) {
     return {
       success: false,
@@ -1432,6 +1490,7 @@ export async function recordMedicationAdministration(input: {
     });
 
     if (error) return { success: false, error: error.message };
+    if (!recordId) return { success: false, error: 'Supabase no confirmó el registro de la dosis.' };
     if (recordId && medication?.paciente_id) {
       await dispatchRelevantNotification({
         eventId: recordId,
@@ -1472,20 +1531,20 @@ export async function getRoleDashboardData(role: RoleKey): Promise<ScreenData> {
 
     const { data: medicamentoData } = await supabase
       .from('medicamentos')
-      .select('nombre, hora_inicio, estado')
+      .select('id, nombre, hora_inicio, estado')
       .eq('paciente_id', patient.id)
+      .neq('estado', 'revision')
       .order('hora_inicio', { ascending: true })
       .limit(4);
 
     const medications = (medicamentoData ?? []).map((item) => ({
+      id: item.id,
       name: item.nombre,
       time: formatTime(item.hora_inicio),
       status: mapStatus(item.estado),
     }));
 
-    const patientAge = patient.fecha_nacimiento
-      ? new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()
-      : 0;
+    const patientAge = calculateAge(patient.fecha_nacimiento);
 
     const totalPatients = role === 'medico'
       ? (await supabase.from('pacientes').select('*', { count: 'exact', head: true })).count ?? undefined
@@ -1497,7 +1556,7 @@ export async function getRoleDashboardData(role: RoleKey): Promise<ScreenData> {
 
     return {
       patientName: patient.nombre,
-      patientMeta: patientAge ? `${patientAge} años · Plan Crónico` : 'Paciente activo',
+      patientMeta: patientAge === null ? 'Paciente activo' : `${patientAge} años`,
       summary,
       medications: medications.length ? medications : empty.medications,
       alerts: medications.some((item) => item.status === 'Pendiente')

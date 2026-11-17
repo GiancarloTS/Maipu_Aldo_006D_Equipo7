@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { UserRound } from 'lucide-react-native';
 
 import { getRoleDashboardData, type ScreenData } from '@/lib/linkcare-data';
 
@@ -25,15 +26,20 @@ export default function CuidadorScreen() {
   const alerts = data?.alerts ?? [];
 
   return (
-    <View style={styles.screen}>
+    <ScrollView contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>Cuidador</Text>
+          <Text style={styles.eyebrow}>LINKCARE · CUIDADOR</Text>
           <Text style={styles.title}>Panel de atención</Text>
         </View>
-        <Pressable style={styles.qrButton} onPress={() => router.push('/qr-scanner' as any)}>
-          <Text style={styles.qrText}>QR</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.qrButton} onPress={() => router.push('/qr-scanner' as any)} accessibilityRole="button" accessibilityLabel="Escanear código QR">
+            <Text style={styles.qrText}>QR</Text>
+          </Pressable>
+          <Pressable style={styles.profileButton} onPress={() => router.push('/profile-settings' as any)} accessibilityRole="button" accessibilityLabel="Abrir perfil">
+            <UserRound size={20} color="#023047" />
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.heroBanner}>
@@ -57,7 +63,7 @@ export default function CuidadorScreen() {
         <Text style={styles.sectionTitle}>Medicamentos del día</Text>
 
         {medications.map((item) => (
-          <View key={`${item.name}-${item.time}`} style={styles.medicationCard}>
+          <View key={item.id} style={styles.medicationCard}>
             <View style={styles.icon}><Text style={styles.iconText}>+</Text></View>
             <View style={styles.medInfo}>
               <Text style={styles.medName}>{item.name}</Text>
@@ -77,13 +83,13 @@ export default function CuidadorScreen() {
           </View>
         ))}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: '#F0F4F8',
     paddingHorizontal: 20,
     paddingTop: 44,
@@ -96,21 +102,24 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   eyebrow: {
-    color: '#028090',
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 4,
+    color: '#006B73',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 5,
   },
   title: {
     color: '#023047',
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 25,
+    fontWeight: '800',
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  profileButton: { width: 46, height: 46, backgroundColor: '#fff', borderRadius: 15, borderWidth: 1, borderColor: '#DCEAF1', alignItems: 'center', justifyContent: 'center' },
   qrButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#028090',
-    borderRadius: 16,
+    width: 46,
+    height: 46,
+    backgroundColor: '#006B73',
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -120,25 +129,26 @@ const styles = StyleSheet.create({
   },
   heroBanner: {
     backgroundColor: '#023047',
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 22,
+    padding: 20,
     marginBottom: 18,
   },
   heroLabel: {
-    color: '#c8ecf1',
+    color: '#9BE3D5',
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 6,
   },
   heroTitle: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 23,
     fontWeight: '800',
     marginBottom: 4,
   },
   heroMeta: {
-    color: '#dfeef2',
+    color: '#D5E8EE',
     fontSize: 13,
+    lineHeight: 19,
   },
   rowCards: {
     flexDirection: 'row',
@@ -151,7 +161,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCEAF1',
   },
   statValue: {
     color: '#023047',
@@ -159,7 +169,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statLabel: {
-    color: '#4A5568',
+    color: '#475569',
     fontSize: 12,
     marginTop: 4,
   },
@@ -186,7 +196,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: '#02C39A',
+    backgroundColor: '#028090',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -199,8 +209,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   medName: {
-    color: '#1A1A2E',
-    fontWeight: '700',
+    color: '#023047',
+    fontWeight: '800',
     marginBottom: 3,
   },
   medTime: {
@@ -232,7 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DCEAF1',
     marginBottom: 8,
   },
   alertDot: {

@@ -76,12 +76,19 @@ export default function LoginRoleSelectionScreen() {
 
       const { data: profile, error: profileError } = await supabase
         .from('usuarios')
-        .select('rol')
+        .select('rol, activo')
         .eq('id', data.user.id)
         .single();
 
       if (profileError || !profile) {
         setErrorMessage('La cuenta no tiene un perfil asociado. Revisa los permisos de la tabla usuarios.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!profile.activo) {
+        await supabase.auth.signOut();
+        setErrorMessage('Tu cuenta está pendiente de habilitación. Contacta al administrador.');
         setIsSubmitting(false);
         return;
       }

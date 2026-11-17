@@ -28,7 +28,8 @@ begin
 
   select u.rol into v_user_role
   from public.usuarios u
-  where u.id = auth.uid() and u.activo;
+  where u.id = auth.uid() and u.activo
+  for update;
 
   if v_user_role is null or v_user_role not in ('medico', 'cuidador', 'familiar') then
     raise exception 'Tu perfil no puede registrar pacientes.' using errcode = '42501';
@@ -38,6 +39,10 @@ begin
     raise exception 'El nombre y la fecha de nacimiento son obligatorios.' using errcode = '22023';
   end if;
 
+  if p_fecha_nacimiento > current_date then
+    raise exception 'La fecha de nacimiento no puede ser futura.' using errcode = '22023';
+  end if;
+
   insert into public.pacientes (
     nombre, fecha_nacimiento, diagnostico_principal, rut, codigo_qr_token, alergias, contacto_emergencia
   ) values (
@@ -45,6 +50,12 @@ begin
     nullif(trim(p_rut), ''), pg_catalog.gen_random_uuid()::text,
     nullif(trim(p_alergias), ''), nullif(trim(p_contacto_emergencia), '')
   ) returning id into new_patient_id;
+
+  update public.paciente_usuario
+  set es_principal = false
+  where usuario_id = auth.uid()
+    and relacion = v_user_role::text::public.relacion_paciente
+    and es_principal;
 
   insert into public.paciente_usuario (paciente_id, usuario_id, relacion, es_principal)
   values (new_patient_id, auth.uid(), v_user_role::text::public.relacion_paciente, true);

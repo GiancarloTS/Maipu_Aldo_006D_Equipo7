@@ -90,7 +90,10 @@ export default function NewPatientScreen() {
             <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Volver a pacientes">
               <Text style={styles.backText}>←</Text>
             </Pressable>
-            <Text style={styles.title}>Nuevo paciente</Text>
+            <View>
+              <Text style={styles.eyebrow}>FICHA CLÍNICA</Text>
+              <Text style={styles.title}>Nuevo paciente</Text>
+            </View>
           </View>
 
           <View style={styles.form}>
@@ -161,19 +164,20 @@ export default function NewPatientScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F0F4F8' },
   flex: { flex: 1 },
-  screen: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
+  screen: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 32, paddingBottom: 36 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   backButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   backText: { color: '#023047', fontSize: 20, fontWeight: '700' },
-  title: { color: '#023047', fontSize: 26, fontWeight: '800' },
-  form: { backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: '#dfeaf1', padding: 18 },
+  eyebrow: { color: '#006B73', fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 2 },
+  title: { color: '#023047', fontSize: 25, fontWeight: '800' },
+  form: { backgroundColor: '#fff', borderRadius: 20, borderWidth: 1, borderColor: '#DCEAF1', padding: 19 },
   intro: { color: '#023047', fontSize: 17, fontWeight: '800', marginBottom: 18 },
-  label: { color: '#334155', fontSize: 14, fontWeight: '700', marginBottom: 7 },
-  input: { minHeight: 48, borderWidth: 1, borderColor: '#94A3B8', borderRadius: 10, paddingHorizontal: 13, marginBottom: 15, color: '#0F172A', backgroundColor: '#fff', justifyContent: 'center' },
+  label: { color: '#334155', fontSize: 13, fontWeight: '800', marginBottom: 7 },
+  input: { minHeight: 49, borderWidth: 1, borderColor: '#DCEAF1', borderRadius: 12, paddingHorizontal: 13, marginBottom: 15, color: '#023047', backgroundColor: '#F8FAFC', justifyContent: 'center' },
   dateButton: { alignItems: 'flex-start' },
   dateText: { color: '#0F172A', fontSize: 15 },
   placeholderText: { color: '#64748B' },
-  primaryButton: { minHeight: 50, backgroundColor: '#006B73', borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
+  primaryButton: { minHeight: 52, backgroundColor: '#006B73', borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   disabledButton: { opacity: 0.65 },
   primaryText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });

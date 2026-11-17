@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { getCaregiverMedications, getDashboardOverviewData, getProfileSettingsData, recordMedicationAdministration, type DashboardOverviewData, type PatientMedication } from '@/lib/linkcare-data';
 import { formatTime, mapStatus } from '@/lib/linkcare-utils';
@@ -59,34 +59,66 @@ export default function MedicationsDayScreen() {
   const summary = `${medicationSchedule.filter((med) => med.status === 'Tomado').length} tomadas · ${medicationSchedule.filter((med) => med.status === 'Pendiente').length} pendientes · ${medicationSchedule.filter((med) => med.status === 'Revisión').length} revisión`;
   const hasPatient = linkedPatients.length > 0;
 
+  const showMessage = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+      return;
+    }
+
+    Alert.alert(title, message);
+  };
+
+  const saveAdministration = async (medication: PatientMedication, isAdministered: boolean) => {
+    setSavingMedicationId(medication.id);
+    try {
+      const result = await recordMedicationAdministration({
+        medicationId: medication.id,
+        isAdministered,
+      });
+
+      if (!result.success) {
+        showMessage('No se pudo registrar', result.error ?? 'Intenta nuevamente.');
+        return;
+      }
+
+      if (isAdministered) {
+        setMedications((current) => current.map((item) => item.id === medication.id ? { ...item, estado: 'administrado' } : item));
+      }
+
+      showMessage(
+        isAdministered ? 'Dosis administrada' : 'Dosis no administrada',
+        'Se guardaron la hora y el usuario responsable en el historial.',
+      );
+    } catch (error) {
+      showMessage(
+        'No se pudo registrar',
+        error instanceof Error ? error.message : 'Intenta nuevamente.',
+      );
+    } finally {
+      setSavingMedicationId(null);
+    }
+  };
+
   const confirmAdministration = (medication: PatientMedication, isAdministered: boolean) => {
     const resultText = isAdministered ? 'administrada' : 'no administrada';
+    const title = isAdministered ? 'Confirmar dosis administrada' : 'Confirmar dosis no administrada';
+    const message = `¿Confirmas que la dosis de ${medication.nombre} (${medication.dosis}) fue ${resultText}?`;
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${title}\n\n${message}`)) {
+        void saveAdministration(medication, isAdministered);
+      }
+      return;
+    }
+
     Alert.alert(
-      isAdministered ? 'Confirmar dosis administrada' : 'Confirmar dosis no administrada',
-      `¿Confirmas que la dosis de ${medication.nombre} (${medication.dosis}) fue ${resultText}?`,
+      title,
+      message,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Confirmar',
-          onPress: async () => {
-            setSavingMedicationId(medication.id);
-            const result = await recordMedicationAdministration({
-              medicationId: medication.id,
-              isAdministered,
-            });
-            setSavingMedicationId(null);
-            if (!result.success) {
-              Alert.alert('No se pudo registrar', result.error ?? 'Intenta nuevamente.');
-              return;
-            }
-            if (isAdministered) {
-              setMedications((current) => current.map((item) => item.id === medication.id ? { ...item, estado: 'administrado' } : item));
-            }
-            Alert.alert(
-              isAdministered ? 'Dosis administrada' : 'Dosis no administrada',
-              'Se guardaron la hora y el usuario responsable en el historial.',
-            );
-          },
+          onPress: () => void saveAdministration(medication, isAdministered),
         },
       ],
     );
@@ -95,10 +127,18 @@ export default function MedicationsDayScreen() {
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/dashboard' as any)}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Volver"
+        >
           <Text style={styles.backText}>←</Text>
         </Pressable>
-        <Text style={styles.title}>Agenda del día</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.eyebrow}>TRATAMIENTO</Text>
+          <Text style={styles.title}>Agenda del día</Text>
+        </View>
       </View>
 
       {!hasPatient && (
@@ -125,13 +165,14 @@ export default function MedicationsDayScreen() {
       ) : null}
 
       {medicationSchedule.map((med) => (
-        <View key={`${med.time}-${med.name}`} style={styles.medCard}>
+        <View key={med.id} style={styles.medCard}>
           <View style={styles.timeBlock}>
             <Text style={styles.timeText}>{med.time}</Text>
           </View>
           <View style={styles.medInfo}>
             <Text style={styles.medName}>{med.name}</Text>
             <Text style={styles.medMeta}>{med.dose} · Paciente: {data?.patientName ?? 'Paciente vinculado'}</Text>
+            {med.source.indicaciones ? <Text style={styles.medInstructions}>Indicaciones: {med.source.indicaciones}</Text> : null}
           </View>
           <Text style={[styles.stateBadge, med.tone === 'ok' ? styles.ok : med.tone === 'pending' ? styles.pending : med.tone === 'late' ? styles.late : styles.planned]}>{med.status}</Text>
           {canAdminister && med.canRecordDose && (
@@ -181,7 +222,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 22,
   },
   backButton: {
     width: 42,
@@ -199,8 +240,18 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#023047',
-    fontSize: 28,
+    fontSize: 25,
     fontWeight: '800',
+  },
+  headerText: {
+    flex: 1,
+  },
+  eyebrow: {
+    color: '#006B73',
+    fontSize: 11,
+    letterSpacing: 0.8,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   emptyStateCard: {
     backgroundColor: '#fff',
@@ -232,42 +283,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   summaryCard: {
-    backgroundColor: '#023047',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 18,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#DCEAF1',
+    padding: 16,
+    marginBottom: 20,
   },
   summaryLabel: {
-    color: '#d9f5f8',
+    color: '#006B73',
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 6,
   },
   summaryValue: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: '700',
+    color: '#023047',
+    fontSize: 17,
+    fontWeight: '800',
   },
   medCard: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#dfeaf1',
     padding: 14,
     marginBottom: 12,
   },
   timeBlock: {
-    backgroundColor: '#e8f6fb',
+    backgroundColor: '#E6F4F2',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginRight: 12,
   },
   timeText: {
-    color: '#028090',
+    color: '#006B73',
     fontWeight: '800',
   },
   medInfo: {
@@ -282,6 +335,12 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontSize: 12,
   },
+  medInstructions: {
+    color: '#334155',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+  },
   stateBadge: {
     borderRadius: 999,
     paddingHorizontal: 8,
@@ -294,18 +353,18 @@ const styles = StyleSheet.create({
   late: { backgroundColor: '#fee2e2', color: '#b91c1c' },
   planned: { backgroundColor: '#e0f2fe', color: '#0369a1' },
   emptyText: { color: '#475569', fontSize: 14, marginBottom: 14 },
-  administerButton: { minHeight: 40, width: '100%', flexBasis: '100%', backgroundColor: '#006B73', borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  administerButton: { minHeight: 44, width: '100%', flexBasis: '100%', backgroundColor: '#006B73', borderRadius: 12, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   administerText: { color: '#fff', fontWeight: '800', fontSize: 12 },
-  notAdministerButton: { minHeight: 40, width: '100%', flexBasis: '100%', backgroundColor: '#fff', borderWidth: 1, borderColor: '#B91C1C', borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  notAdministerButton: { minHeight: 42, width: '100%', flexBasis: '100%', backgroundColor: '#fff', borderWidth: 1, borderColor: '#FECACA', borderRadius: 12, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   notAdministerText: { color: '#991B1B', fontWeight: '800', fontSize: 12 },
   disabledButton: { opacity: 0.6 },
   errorText: { color: '#991B1B', fontSize: 14, lineHeight: 20, marginBottom: 14 },
   readOnlyHint: { color: '#475569', fontSize: 13, lineHeight: 18, marginTop: 2, marginBottom: 14 },
   primaryButton: {
     marginTop: 12,
-    backgroundColor: '#028090',
-    borderRadius: 16,
-    paddingVertical: 18,
+    backgroundColor: '#023047',
+    borderRadius: 14,
+    paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -89,7 +89,10 @@ export default function NewPrescriptionScreen() {
             <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Volver a pacientes">
               <Text style={styles.backText}>←</Text>
             </Pressable>
-            <Text style={styles.title}>Nueva prescripción</Text>
+            <View>
+              <Text style={styles.eyebrow}>TRATAMIENTO</Text>
+              <Text style={styles.title}>Nueva prescripción</Text>
+            </View>
           </View>
 
           {isLoading ? (
@@ -142,24 +145,25 @@ export default function NewPrescriptionScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F0F4F8' },
   flex: { flex: 1 },
-  screen: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
+  screen: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 32, paddingBottom: 36 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   backButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   backText: { color: '#023047', fontSize: 20, fontWeight: '700' },
+  eyebrow: { color: '#006B73', fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 2 },
   title: { color: '#023047', fontSize: 25, fontWeight: '800' },
-  form: { backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: '#dfeaf1', padding: 18 },
-  emptyState: { backgroundColor: '#fff', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#dfeaf1' },
+  form: { backgroundColor: '#fff', borderRadius: 20, borderWidth: 1, borderColor: '#DCEAF1', padding: 19 },
+  emptyState: { backgroundColor: '#fff', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#DCEAF1' },
   sectionTitle: { color: '#023047', fontSize: 18, fontWeight: '800', marginBottom: 8 },
   bodyText: { color: '#334155', fontSize: 14, lineHeight: 21 },
   label: { color: '#334155', fontSize: 14, fontWeight: '700', marginBottom: 7, marginTop: 4 },
-  input: { minHeight: 48, borderWidth: 1, borderColor: '#94A3B8', borderRadius: 10, paddingHorizontal: 13, marginBottom: 14, color: '#0F172A', backgroundColor: '#fff' },
+  input: { minHeight: 49, borderWidth: 1, borderColor: '#DCEAF1', borderRadius: 12, paddingHorizontal: 13, marginBottom: 14, color: '#023047', backgroundColor: '#F8FAFC' },
   multiline: { minHeight: 88, textAlignVertical: 'top', paddingTop: 12 },
   patientList: { gap: 8, marginBottom: 12 },
-  patientOption: { borderWidth: 1, borderColor: '#94A3B8', borderRadius: 10, padding: 12, backgroundColor: '#fff' },
+  patientOption: { borderWidth: 1, borderColor: '#DCEAF1', borderRadius: 12, padding: 13, backgroundColor: '#fff' },
   patientOptionSelected: { borderColor: '#006B73', backgroundColor: '#E6F4F2' },
   patientOptionText: { color: '#0F172A', fontWeight: '600' },
   patientOptionTextSelected: { color: '#00545B', fontWeight: '800' },
-  primaryButton: { minHeight: 50, backgroundColor: '#006B73', borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  primaryButton: { minHeight: 52, backgroundColor: '#006B73', borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   disabledButton: { opacity: 0.65 },
   primaryText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });

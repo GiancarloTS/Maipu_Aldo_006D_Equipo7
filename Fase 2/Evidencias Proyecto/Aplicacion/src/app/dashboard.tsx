@@ -224,8 +224,9 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
 
+          {data?.error ? <Text style={styles.errorText}>{data.error}</Text> : null}
           {medicationList.map((med) => (
-            <View key={`${med.name}-${med.time}`} style={styles.itemCard}>
+            <View key={med.id} style={styles.itemCard}>
               <View style={[styles.itemIcon, med.status === 'Tomado' ? styles.iconOk : med.status === 'Pendiente' ? styles.iconPending : styles.iconLate]} />
               <View style={styles.itemInfo}>
                 <Text style={styles.itemTitle}>{med.name}</Text>
@@ -570,6 +571,11 @@ const styles = StyleSheet.create({
   statusLate: {
     backgroundColor: '#fee2e2',
     color: '#b91c1c',
+  },
+  errorText: {
+    color: '#b91c1c',
+    fontSize: 13,
+    marginBottom: 10,
   },
   noteCard: {
     backgroundColor: '#fff',

@@ -75,8 +75,8 @@ export default function VoiceRecordingScreen() {
       setIsRecording(false);
       const message = error instanceof Error ? error.message : String(error);
       setRecognitionError(
-        message.includes('native module')
-          ? 'Reconocimiento de voz no está disponible en esta versión de la aplicación. Reinicia la app y reinstala el módulo nativo.'
+        message.includes('Expo Go')
+          ? 'Expo Go no incluye el módulo de reconocimiento de voz. Usa una compilación de desarrollo para dictar notas; también puedes escribir la transcripción manualmente.'
           : 'No se pudo iniciar el reconocimiento de voz. Inténtalo nuevamente.',
       );
     }

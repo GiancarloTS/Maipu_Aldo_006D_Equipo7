@@ -105,26 +105,8 @@ export default function RegisterScreen() {
         return;
       }
 
-      const userId = data.user?.id;
-      if (!userId) {
+      if (!data.user?.id) {
         setErrorMessage('La cuenta se creó, pero no se pudo crear el perfil asociado.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      const { error: profileError } = await supabase.from('usuarios').insert([
-        {
-          id: userId,
-          nombre: trimmedName,
-          email: normalizedEmail,
-          rol: selectedRole,
-          telefono: null,
-          activo: true,
-        },
-      ]);
-
-      if (profileError) {
-        setErrorMessage(`No se pudo crear el perfil del usuario. Revisá permisos/RLS: ${profileError.message}`);
         setIsSubmitting(false);
         return;
       }
@@ -132,7 +114,7 @@ export default function RegisterScreen() {
       setIsSubmitting(false);
       Alert.alert(
         'Cuenta creada',
-        'Tu usuario se registró correctamente. Revisa tu correo para confirmar la cuenta antes de iniciar sesión.'
+        'Tu usuario y perfil se registraron correctamente. Revisa tu correo para confirmar la cuenta antes de iniciar sesión.'
       );
       router.replace('/login' as any);
     } catch (e) {
@@ -159,6 +141,7 @@ export default function RegisterScreen() {
           <View style={styles.card}>
             <Text style={styles.brand}>LinkCare</Text>
             <Text style={styles.subtitle}>Crear cuenta</Text>
+            <Text style={styles.roleHint}>Selecciona el tipo de cuenta que mejor se ajusta a tu función.</Text>
 
             <View style={styles.roleRow}>
               {roles.map((role) => (
@@ -300,6 +283,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 18,
+  },
+  roleHint: {
+    color: '#475569',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 14,
   },
   roleButton: {
     flex: 1,

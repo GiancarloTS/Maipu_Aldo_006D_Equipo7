@@ -88,6 +88,7 @@ export default function MedicalPatientHistoryScreen() {
                 <View style={styles.medicationMain}>
                   <Text style={styles.medicationName}>{medication.name}</Text>
                   <Text style={styles.detail}>{medication.dose} · cada {medication.frequencyHours} h</Text>
+                  {medication.instructions ? <Text style={styles.detail}>Indicaciones: {medication.instructions}</Text> : null}
                   <Text style={styles.detail}>{formatTime(medication.startTime)} · desde {medication.startDate}{medication.endDate ? ` hasta ${medication.endDate}` : ''}</Text>
                 </View>
                 <Text style={[styles.status, medication.status === 'administrado' ? styles.statusDone : styles.statusPending]}>
@@ -120,16 +121,16 @@ export default function MedicalPatientHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flexGrow: 1, backgroundColor: '#F0F4F8', paddingHorizontal: 20, paddingTop: 36, paddingBottom: 32 },
+  screen: { flexGrow: 1, backgroundColor: '#F0F4F8', paddingHorizontal: 20, paddingTop: 38, paddingBottom: 36 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
   backButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   backText: { color: '#023047', fontSize: 20, fontWeight: '700' },
   headerText: { flex: 1 },
   eyebrow: { color: '#006B73', fontSize: 12, fontWeight: '700' },
-  title: { color: '#0F172A', fontSize: 25, fontWeight: '800' },
+  title: { color: '#023047', fontSize: 25, fontWeight: '800' },
   message: { color: '#334155', fontSize: 15, paddingVertical: 18 },
   error: { color: '#991B1B', backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, lineHeight: 20 },
-  patientHeader: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 12 },
+  patientHeader: { flexDirection: 'row', alignItems: 'center', padding: 17, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: '#DCEAF1', marginBottom: 12 },
   avatar: { width: 48, height: 48, borderRadius: 15, backgroundColor: '#006B73', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   avatarText: { color: '#fff', fontWeight: '800' },
   patientIdentity: { flex: 1 },
@@ -138,14 +139,14 @@ const styles = StyleSheet.create({
   keyFacts: { flexDirection: 'row', gap: 10, marginBottom: 18 },
   healthButton: { minHeight: 44, backgroundColor: '#006B73', borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   healthButtonText: { color: '#fff', fontWeight: '800' },
-  fact: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: '#E6F4F2' },
+  fact: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#E6F4F2' },
   factLabel: { color: '#00545B', fontSize: 11, fontWeight: '800', marginBottom: 5 },
   factValue: { color: '#0F172A', fontSize: 13, lineHeight: 18, fontWeight: '600' },
   section: { marginBottom: 18 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   sectionTitle: { color: '#0F172A', fontSize: 17, fontWeight: '800' },
   count: { color: '#475569', fontSize: 12, fontWeight: '700' },
-  medicationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 13, backgroundColor: '#fff', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#CBD5E1' },
+  medicationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#DCEAF1', borderRadius: 14, marginBottom: 9 },
   medicationMain: { flex: 1 },
   medicationName: { color: '#0F172A', fontSize: 15, fontWeight: '800', marginBottom: 3 },
   detail: { color: '#334155', fontSize: 12, lineHeight: 17 },

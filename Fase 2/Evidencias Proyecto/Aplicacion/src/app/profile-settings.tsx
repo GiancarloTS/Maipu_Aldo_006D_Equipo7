@@ -183,14 +183,25 @@ export default function ProfileSettingsScreen() {
     setIsSigningOut(true);
 
     try {
-      if (supabase) {
-        await supabase.auth.signOut();
+      if (!supabase) {
+        Alert.alert('No se pudo cerrar sesión', 'Supabase no está configurado.');
+        return;
       }
-    } catch {
-      // no-op: aún así se lleva al usuario al login para cerrar la sesión localmente
+
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        Alert.alert('No se pudo cerrar sesión', error.message);
+        return;
+      }
+
+      router.replace('/login' as any);
+    } catch (error) {
+      Alert.alert(
+        'No se pudo cerrar sesión',
+        error instanceof Error ? error.message : 'Intenta nuevamente.',
+      );
     } finally {
       setIsSigningOut(false);
-      router.replace('/login' as any);
     }
   };
 
